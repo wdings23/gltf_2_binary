@@ -32,6 +32,7 @@ struct Joint
     uint32_t miIndex;
     uint32_t miNumChildren;
     uint32_t maiChildren[32];
+    uint32_t miParent;
 
     quaternion  mRotation;
     float3      mTranslation;
@@ -45,6 +46,7 @@ void traverseRig(
     std::vector<std::vector<AnimFrame>> const& aaKeyFrames,
     std::vector<uint32_t> const& aiSkinJointIndices,
     std::vector<float4x4> const& aJointLocalBindMatrices,
+    std::vector<float4x4> const& aJointGlobalInverseBindMatrices,
     std::vector<uint32_t> const& aiJointIndexMapping,
     std::map<uint32_t, std::string>& aJointMapping,
     uint32_t iStack);
@@ -194,6 +196,7 @@ void loadGLTF(
     std::vector<std::vector<Joint>> aaAnimHierarchy;
     std::vector<std::vector<float4x4>> aaJointLocalBindMatrices;
     std::vector<std::vector<AnimFrame>> aaAnimationFrames;
+    std::vector<std::vector<uint32_t>> aaiJointMapIndices;
     std::map<std::string, std::map<uint32_t, std::string>> aaJointMapping;
     {
         for(const auto& mesh : model.meshes)
@@ -335,6 +338,7 @@ void loadGLTF(
                     aJoints.push_back(joint);
                 }
 
+                // tag joints that are children of some other joints
                 std::vector<uint32_t> aiTagged(aJoints.size());
                 std::vector<Joint> aRootJoints;
                 for(auto const& joint : aJoints)
@@ -345,7 +349,7 @@ void loadGLTF(
                     }
                 }
                 
-                
+                // get the root of the hierarchy
                 for(uint32_t i = 0; i < (uint32_t)aJoints.size(); i++)
                 {
                     if(aiTagged[i] == 0)
@@ -426,6 +430,30 @@ void loadGLTF(
             }
 
         }   // for skin
+
+        for(uint32_t i = 0; i < (uint32_t)aaiSkinJointIndices.size(); i++)
+        {
+            std::vector<uint32_t> aiJointMapIndices(aaiSkinJointIndices[i].size());
+            for(uint32_t j = 0; j < (uint32_t)aaiSkinJointIndices[i].size(); j++)
+            {
+                uint32_t iJointIndex = aaiSkinJointIndices[i][j];
+                aiJointMapIndices[iJointIndex] = j;
+            }
+
+            aaiJointMapIndices.push_back(aiJointMapIndices);
+        }
+
+        for(uint32_t i = 0; i < (uint32_t)aaJoints.size(); i++)
+        {
+            for(auto const& joint : aaJoints[i])
+            {
+                for(uint32_t j = 0; j < joint.miNumChildren; j++)
+                {
+                    uint32_t iArrayIndex = aaiJointMapIndices[0][joint.maiChildren[j]];
+                    aaJoints[i][iArrayIndex].miParent = joint.miIndex;
+                }
+            }
+        }
 
     }   // skinning attributes
 
@@ -612,19 +640,6 @@ void loadGLTF(
         fwrite(aJoints.data(), sizeof(Joint), iNumJoints, fp);
     }
 
-    std::vector<std::vector<uint32_t>> aaiJointMapIndices;
-    for(uint32_t i = 0; i < (uint32_t)aaiSkinJointIndices.size(); i++)
-    {
-        std::vector<uint32_t> aiJointMapIndices(aaiSkinJointIndices[i].size());
-        for(uint32_t j = 0; j < (uint32_t)aaiSkinJointIndices[i].size(); j++)
-        {
-            uint32_t iJointIndex = aaiSkinJointIndices[i][j];
-            aiJointMapIndices[iJointIndex] = j;
-        }
-
-        aaiJointMapIndices.push_back(aiJointMapIndices);
-    }
-
     // joint to array mapping
     for(uint32_t i = 0; i < (uint32_t)aaiJointMapIndices.size(); i++)
     {
@@ -665,6 +680,7 @@ void loadGLTF(
         aaAnimationFrames,
         aaiSkinJointIndices[0],
         aaJointLocalBindMatrices[0],
+        aaInverseBindMatrices[0],
         aaiJointMapIndices[0],
         aaJointMapping["Armature"],
         0
@@ -681,6 +697,7 @@ void traverseRig(
     std::vector<std::vector<AnimFrame>> const& aaKeyFrames,
     std::vector<uint32_t> const& aiSkinJointIndices,
     std::vector<float4x4> const& aJointLocalBindMatrices,
+    std::vector<float4x4> const& aJointGlobalInverseBindMatrices,
     std::vector<uint32_t> const& aiJointIndexMapping,
     std::map<uint32_t, std::string>& aJointMapping,
     uint32_t iStack)
@@ -700,7 +717,7 @@ void traverseRig(
     );
 #endif // #if 0
 
-    float const fTime = 0.1f;
+    float const fTime = 3.0f;
 
     uint32_t iArrayIndex = aiJointIndexMapping[joint.miIndex];
     std::vector<AnimFrame> const& aKeyFrames = aaKeyFrames[iArrayIndex];
@@ -742,13 +759,21 @@ void traverseRig(
     quaternion q = quaternion(keyFrame.mRotation.x, keyFrame.mRotation.y, keyFrame.mRotation.z, keyFrame.mRotation.w);
     float4x4 rotationMatrix = q.matrix();
     float4x4 localAnimMatrix = translateMatrix * rotationMatrix * scaleMatrix;
-
     float4x4 totalMatrix = matrix * localAnimMatrix;
 
+    float4x4 globalBindMatrix = invert(transpose(aJointGlobalInverseBindMatrices[iArrayIndex]));
+
+    //DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
+    //    totalMatrix.mafEntries[3],
+    //    totalMatrix.mafEntries[7],
+    //    totalMatrix.mafEntries[11],
+    //    jointName.c_str()
+    //);
+
     DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
-        totalMatrix.mafEntries[3],
-        totalMatrix.mafEntries[7],
-        totalMatrix.mafEntries[11],
+        globalBindMatrix.mafEntries[3],
+        globalBindMatrix.mafEntries[7],
+        globalBindMatrix.mafEntries[11],
         jointName.c_str()
     );
 
@@ -758,13 +783,9 @@ void traverseRig(
         uint32_t iChildArrayIndex = aiJointIndexMapping[iChildJointIndex];
 
         Joint const* pChildJoint = &aJoints[iChildArrayIndex];
-        //float4x4 const* pChildMatrix = &aInverseJointMatrices[iChildArrayIndex];
 
         if(pChildJoint != nullptr)
         {
-            //float4x4 childMatrix = invert(transpose(*pChildMatrix));
-            //float4x4 totalMatrix = childMatrix * matrix;
-
             traverseRig(
                 *pChildJoint,
                 totalMatrix,
@@ -772,6 +793,7 @@ void traverseRig(
                 aaKeyFrames,
                 aiSkinJointIndices,
                 aJointLocalBindMatrices,
+                aJointGlobalInverseBindMatrices,
                 aiJointIndexMapping,
                 aJointMapping,
                 iStack + 1);
