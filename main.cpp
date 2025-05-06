@@ -40,6 +40,7 @@ struct Joint
 };
 
 void traverseRig(
+    std::map<uint32_t, float4x4>& aGlobalJointPositions,
     Joint const& joint,
     float4x4 const& matrix,
     std::vector<Joint> const& aJoints,
@@ -672,8 +673,10 @@ void loadGLTF(
     //float4x4 const* pMatrix = &aaInverseBindMatrices[0][rootJoint.miIndex];
     //float4x4 rootMatrix = invert(transpose(*pMatrix));
     
+    std::map<uint32_t, float4x4> aGlobalJointAnimatedMatrices;
     float4x4 rootMatrix;
     traverseRig(
+        aGlobalJointAnimatedMatrices,
         aaAnimHierarchy[0].front(),
         rootMatrix,
         aaJoints[0],
@@ -685,12 +688,120 @@ void loadGLTF(
         aaJointMapping["Armature"],
         0
     );
+
+    std::map<uint32_t, float4x4> aGlobalJointBindMatrices;
+    for(uint32_t i = 0; i < (uint32_t)aaInverseBindMatrices[0].size(); i++)
+    {
+        Joint const& joint = aaJoints[0][i];
+        float4x4 m = invert(transpose(aaInverseBindMatrices[0][i]));
+        aGlobalJointBindMatrices[joint.miIndex] = m;
+    }
+
+    // test rotation conversion of bind root to spin0 joint in bind pose to animated pose
+    {
+        uint32_t iRootJointIndex = 0;
+        uint32_t iRootArrayIndex = aaiJointMapIndices[0][iRootJointIndex];
+        Joint const& rootJoint = aaJoints[0][0];
+        uint32_t iChildJointIndex = rootJoint.maiChildren[0];
+        uint32_t iChildArrayIndex = aaiJointMapIndices[0][iChildJointIndex];
+        Joint const& childJoint = aaJoints[0][iChildArrayIndex];
+        
+        // animated joint position
+        float3 rootJointAnimatedPosition = float3(
+            aGlobalJointAnimatedMatrices[rootJoint.miIndex].mafEntries[3],
+            aGlobalJointAnimatedMatrices[rootJoint.miIndex].mafEntries[7],
+            aGlobalJointAnimatedMatrices[rootJoint.miIndex].mafEntries[11]
+        );
+        float3 childJointAnimatedPosition = float3(
+            aGlobalJointAnimatedMatrices[childJoint.miIndex].mafEntries[3],
+            aGlobalJointAnimatedMatrices[childJoint.miIndex].mafEntries[7],
+            aGlobalJointAnimatedMatrices[childJoint.miIndex].mafEntries[11]
+        );
+
+        // bind joint positions
+        float3 rootJointBindPosition = float3(
+            aGlobalJointBindMatrices[rootJoint.miIndex].mafEntries[3],
+            aGlobalJointBindMatrices[rootJoint.miIndex].mafEntries[7],
+            aGlobalJointBindMatrices[rootJoint.miIndex].mafEntries[11]
+        );
+        float3 childJointBindPosition = float3(
+            aGlobalJointBindMatrices[childJoint.miIndex].mafEntries[3],
+            aGlobalJointBindMatrices[childJoint.miIndex].mafEntries[7],
+            aGlobalJointBindMatrices[childJoint.miIndex].mafEntries[11]
+        );
+
+        // root to spine joint vector
+        float3 bindPositionDiff = childJointBindPosition - rootJointBindPosition;
+        float3 animPositionDiff = childJointAnimatedPosition - rootJointAnimatedPosition;
+        float3 bindPositionDiffNormalized = normalize(bindPositionDiff);
+        float3 animPositionDiffNormalized = normalize(animPositionDiff);
+        
+        // axis and angle of rotation
+        float3 axis = cross(bindPositionDiffNormalized, animPositionDiffNormalized);
+        float3 axisNormalized = normalize(axis);
+        float fAnimAngle = atan2f(length(axis), dot(animPositionDiffNormalized, bindPositionDiffNormalized));
+
+        // K matrix for Rodriguez rotation
+        float4x4 K;
+        K.mafEntries[0] = 0.0f;
+        K.mafEntries[1] = -axisNormalized.z;
+        K.mafEntries[2] = axisNormalized.y;
+        K.mafEntries[3] = 0.0f;
+
+        K.mafEntries[4] = axisNormalized.z;
+        K.mafEntries[5] = 0.0f;
+        K.mafEntries[6] = -axisNormalized.x;
+        K.mafEntries[7] = 0.0f;
+
+        K.mafEntries[8] = -axisNormalized.y;
+        K.mafEntries[9] = axisNormalized.x;
+        K.mafEntries[10] = 0.0f;
+        K.mafEntries[11] = 0.0f;
+
+        K.mafEntries[12] = 0.0f;
+        K.mafEntries[13] = 0.0f;
+        K.mafEntries[14] = 0.0f;
+        K.mafEntries[15] = 1.0f;
+
+        float fSinAngle = sinf(fAnimAngle);
+        float fOneMinusCosAngle = 1.0f - cosf(fAnimAngle);
+
+        // Rodriguez rotation matrix
+        float4x4 R;
+        float4x4 I;
+        R.mafEntries[0] = I.mafEntries[0] + fSinAngle * K.mafEntries[0] + fOneMinusCosAngle * K.mafEntries[0] * K.mafEntries[0];
+        R.mafEntries[1] = I.mafEntries[1] + fSinAngle * K.mafEntries[1] + fOneMinusCosAngle * K.mafEntries[1] * K.mafEntries[1];
+        R.mafEntries[2] = I.mafEntries[2] + fSinAngle * K.mafEntries[2] + fOneMinusCosAngle * K.mafEntries[2] * K.mafEntries[2];
+        R.mafEntries[3] = I.mafEntries[3] + fSinAngle * K.mafEntries[3] + fOneMinusCosAngle * K.mafEntries[3] * K.mafEntries[3];
+
+        R.mafEntries[4] = I.mafEntries[4] + fSinAngle * K.mafEntries[4] + fOneMinusCosAngle * K.mafEntries[4] * K.mafEntries[4];
+        R.mafEntries[5] = I.mafEntries[5] + fSinAngle * K.mafEntries[5] + fOneMinusCosAngle * K.mafEntries[5] * K.mafEntries[5];
+        R.mafEntries[6] = I.mafEntries[6] + fSinAngle * K.mafEntries[6] + fOneMinusCosAngle * K.mafEntries[6] * K.mafEntries[6];
+        R.mafEntries[7] = I.mafEntries[7] + fSinAngle * K.mafEntries[7] + fOneMinusCosAngle * K.mafEntries[7] * K.mafEntries[7];
+
+        R.mafEntries[8] =  I.mafEntries[8] + fSinAngle * K.mafEntries[8] + fOneMinusCosAngle * K.mafEntries[8] * K.mafEntries[8];
+        R.mafEntries[9] =  I.mafEntries[9] + fSinAngle * K.mafEntries[9] + fOneMinusCosAngle * K.mafEntries[9] * K.mafEntries[9];
+        R.mafEntries[10] = I.mafEntries[10] + fSinAngle * K.mafEntries[10] + fOneMinusCosAngle * K.mafEntries[10] * K.mafEntries[10];
+        R.mafEntries[11] = I.mafEntries[11] + fSinAngle * K.mafEntries[11] + fOneMinusCosAngle * K.mafEntries[11] * K.mafEntries[11];
+
+        R.mafEntries[12] = I.mafEntries[12] + fSinAngle * K.mafEntries[12] + fOneMinusCosAngle * K.mafEntries[12] * K.mafEntries[12];
+        R.mafEntries[13] = I.mafEntries[13] + fSinAngle * K.mafEntries[13] + fOneMinusCosAngle * K.mafEntries[13] * K.mafEntries[13];
+        R.mafEntries[14] = I.mafEntries[14] + fSinAngle * K.mafEntries[14] + fOneMinusCosAngle * K.mafEntries[14] * K.mafEntries[14];
+        R.mafEntries[15] = I.mafEntries[15] + fSinAngle * K.mafEntries[15] + fOneMinusCosAngle * K.mafEntries[15] * K.mafEntries[15];
+
+        float4 test = R * float4(bindPositionDiffNormalized, 1.0f);
+
+        int iDebug = 1;
+    }
+
+    int iDebug = 1;
 }
 
 /*
 **
 */
 void traverseRig(
+    std::map<uint32_t, float4x4>& aGlobalJointPositions,
     Joint const& joint,
     float4x4 const& matrix,
     std::vector<Joint> const& aJoints,
@@ -761,6 +872,8 @@ void traverseRig(
     float4x4 localAnimMatrix = translateMatrix * rotationMatrix * scaleMatrix;
     float4x4 totalMatrix = matrix * localAnimMatrix;
 
+    aGlobalJointPositions[joint.miIndex] = totalMatrix;
+
     float4x4 globalBindMatrix = invert(transpose(aJointGlobalInverseBindMatrices[iArrayIndex]));
 
     //DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
@@ -769,6 +882,8 @@ void traverseRig(
     //    totalMatrix.mafEntries[11],
     //    jointName.c_str()
     //);
+
+    
 
     DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
         globalBindMatrix.mafEntries[3],
@@ -787,6 +902,7 @@ void traverseRig(
         if(pChildJoint != nullptr)
         {
             traverseRig(
+                aGlobalJointPositions,
                 *pChildJoint,
                 totalMatrix,
                 aJoints,
