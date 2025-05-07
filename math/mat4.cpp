@@ -634,7 +634,7 @@ bool mat4::identical(mat4 const& m, float fTolerance) const
 /*
 **
 */
-mat4 makeAngleAxis(vec3 const& axis, float fAngle)
+mat4 makeFromAngleAxis(vec3 const& axis, float fAngle)
 {
     float fCosAngle = cosf(fAngle);
     float fSinAngle = sinf(fAngle);
@@ -665,6 +665,19 @@ mat4 makeAngleAxis(vec3 const& axis, float fAngle)
     
 
     return m;
+}
+
+/*
+**
+*/
+void makeAngleAxis(
+    float3& axis,
+    float& fAngle,
+    mat4 const& R)
+{
+    float fTrace = R.mafEntries[0] + R.mafEntries[5] + R.mafEntries[10];
+    fAngle = acosf((fTrace - 1.0f) * 0.5f);
+    axis = normalize(float3(R.mafEntries[9] - R.mafEntries[6], R.mafEntries[2] - R.mafEntries[8], R.mafEntries[4] - R.mafEntries[1]) / (2.0f * sinf(fAngle)));
 }
 
 /*
@@ -728,5 +741,9 @@ mat4 makeRotation(
     afEntries[14] = I.mafEntries[14] + fSinAngle * K.mafEntries[14] + fOneMinusCosAngle * K.mafEntries[14] * K.mafEntries[14];
     afEntries[15] = I.mafEntries[15] + fSinAngle * K.mafEntries[15] + fOneMinusCosAngle * K.mafEntries[15] * K.mafEntries[15];
 
-    return float4x4(afEntries);
+    float3 v0 = normalize(float3(afEntries[0], afEntries[1], afEntries[2]));
+    float3 v1 = normalize(float3(afEntries[4], afEntries[5], afEntries[6]));
+    float3 v2 = normalize(float3(afEntries[8], afEntries[9], afEntries[10]));
+
+    return float4x4(v0, v1, v2);
 }

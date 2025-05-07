@@ -152,7 +152,8 @@ mat4 scale(vec4 const& scale);
 
 vec3 extractEulerAngles(mat4 const& m);
 
-mat4 makeAngleAxis(vec3 const& axis, float fAngle);
+mat4 makeFromAngleAxis(vec3 const& axis, float fAngle);
+void makeAngleAxis(vec3& axis, float& fAngle, mat4 const& m);
 
 mat4 makeRotation(vec3 const& dest, vec3 const& src);
 
