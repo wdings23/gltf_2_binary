@@ -666,3 +666,67 @@ mat4 makeAngleAxis(vec3 const& axis, float fAngle)
 
     return m;
 }
+
+/*
+**
+*/
+mat4 makeRotation(
+    vec3 const& dest, 
+    vec3 const& src)
+{
+    // axis and angle of rotation
+    float3 axis = cross(src, dest);
+    float3 axisNormalized = normalize(axis);
+    float fAnimAngle = atan2f(length(axis), dot(dest, src));
+
+    // K matrix for Rodriguez rotation
+    float4x4 K;
+    K.mafEntries[0] = 0.0f;
+    K.mafEntries[1] = -axisNormalized.z;
+    K.mafEntries[2] = axisNormalized.y;
+    K.mafEntries[3] = 0.0f;
+
+    K.mafEntries[4] = axisNormalized.z;
+    K.mafEntries[5] = 0.0f;
+    K.mafEntries[6] = -axisNormalized.x;
+    K.mafEntries[7] = 0.0f;
+
+    K.mafEntries[8] = -axisNormalized.y;
+    K.mafEntries[9] = axisNormalized.x;
+    K.mafEntries[10] = 0.0f;
+    K.mafEntries[11] = 0.0f;
+
+    K.mafEntries[12] = 0.0f;
+    K.mafEntries[13] = 0.0f;
+    K.mafEntries[14] = 0.0f;
+    K.mafEntries[15] = 1.0f;
+
+    float fSinAngle = sinf(fAnimAngle);
+    float fOneMinusCosAngle = 1.0f - cosf(fAnimAngle);
+
+    // Rodriguez rotation matrix
+    float4x4 R;
+    float4x4 I;
+    float afEntries[16];
+    afEntries[0] = I.mafEntries[0] + fSinAngle * K.mafEntries[0] + fOneMinusCosAngle * K.mafEntries[0] * K.mafEntries[0];
+    afEntries[1] = I.mafEntries[1] + fSinAngle * K.mafEntries[1] + fOneMinusCosAngle * K.mafEntries[1] * K.mafEntries[1];
+    afEntries[2] = I.mafEntries[2] + fSinAngle * K.mafEntries[2] + fOneMinusCosAngle * K.mafEntries[2] * K.mafEntries[2];
+    afEntries[3] = I.mafEntries[3] + fSinAngle * K.mafEntries[3] + fOneMinusCosAngle * K.mafEntries[3] * K.mafEntries[3];
+
+    afEntries[4] = I.mafEntries[4] + fSinAngle * K.mafEntries[4] + fOneMinusCosAngle * K.mafEntries[4] * K.mafEntries[4];
+    afEntries[5] = I.mafEntries[5] + fSinAngle * K.mafEntries[5] + fOneMinusCosAngle * K.mafEntries[5] * K.mafEntries[5];
+    afEntries[6] = I.mafEntries[6] + fSinAngle * K.mafEntries[6] + fOneMinusCosAngle * K.mafEntries[6] * K.mafEntries[6];
+    afEntries[7] = I.mafEntries[7] + fSinAngle * K.mafEntries[7] + fOneMinusCosAngle * K.mafEntries[7] * K.mafEntries[7];
+
+    afEntries[8] = I.mafEntries[8] + fSinAngle * K.mafEntries[8] + fOneMinusCosAngle * K.mafEntries[8] * K.mafEntries[8];
+    afEntries[9] = I.mafEntries[9] + fSinAngle * K.mafEntries[9] + fOneMinusCosAngle * K.mafEntries[9] * K.mafEntries[9];
+    afEntries[10] = I.mafEntries[10] + fSinAngle * K.mafEntries[10] + fOneMinusCosAngle * K.mafEntries[10] * K.mafEntries[10];
+    afEntries[11] = I.mafEntries[11] + fSinAngle * K.mafEntries[11] + fOneMinusCosAngle * K.mafEntries[11] * K.mafEntries[11];
+
+    afEntries[12] = I.mafEntries[12] + fSinAngle * K.mafEntries[12] + fOneMinusCosAngle * K.mafEntries[12] * K.mafEntries[12];
+    afEntries[13] = I.mafEntries[13] + fSinAngle * K.mafEntries[13] + fOneMinusCosAngle * K.mafEntries[13] * K.mafEntries[13];
+    afEntries[14] = I.mafEntries[14] + fSinAngle * K.mafEntries[14] + fOneMinusCosAngle * K.mafEntries[14] * K.mafEntries[14];
+    afEntries[15] = I.mafEntries[15] + fSinAngle * K.mafEntries[15] + fOneMinusCosAngle * K.mafEntries[15] * K.mafEntries[15];
+
+    return float4x4(afEntries);
+}

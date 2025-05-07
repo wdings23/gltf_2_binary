@@ -736,6 +736,7 @@ void loadGLTF(
         float3 bindPositionDiffNormalized = normalize(bindPositionDiff);
         float3 animPositionDiffNormalized = normalize(animPositionDiff);
         
+#if 0
         // axis and angle of rotation
         float3 axis = cross(bindPositionDiffNormalized, animPositionDiffNormalized);
         float3 axisNormalized = normalize(axis);
@@ -788,8 +789,14 @@ void loadGLTF(
         R.mafEntries[13] = I.mafEntries[13] + fSinAngle * K.mafEntries[13] + fOneMinusCosAngle * K.mafEntries[13] * K.mafEntries[13];
         R.mafEntries[14] = I.mafEntries[14] + fSinAngle * K.mafEntries[14] + fOneMinusCosAngle * K.mafEntries[14] * K.mafEntries[14];
         R.mafEntries[15] = I.mafEntries[15] + fSinAngle * K.mafEntries[15] + fOneMinusCosAngle * K.mafEntries[15] * K.mafEntries[15];
+#endif // #if 0
+
+        float4x4 R = makeRotation(animPositionDiffNormalized, bindPositionDiffNormalized);
 
         float4 test = R * float4(bindPositionDiffNormalized, 1.0f);
+
+        float3 diff = float3(test) - animPositionDiffNormalized;
+        float fLength = length(diff);
 
         int iDebug = 1;
     }
