@@ -19,6 +19,11 @@ struct quaternion
         x = fX; y = fY; z = fZ; w = fW;
     }
     
+    quaternion(vec4 const& v)
+    {
+        x = v.x; y = v.y; z = v.z; w = v.w;
+    }
+
     quaternion operator + (quaternion const& quat)
     {
         return quaternion(quat.x + x, quat.y + y, quat.z + z, quat.w + w);
@@ -68,6 +73,10 @@ struct quaternion
 
 	quaternion fromMatrix(mat4 const& mat);
 	vec3 toEuler();
+
+    static quaternion slerp(quaternion const& q0, quaternion const& q1, float fT);
+    static float dot(quaternion const& q0, quaternion const& q1);
+    static quaternion normalize(quaternion const& q);
 };
 
 

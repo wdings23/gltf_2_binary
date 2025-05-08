@@ -676,7 +676,8 @@ void makeAngleAxis(
     mat4 const& R)
 {
     float fTrace = R.mafEntries[0] + R.mafEntries[5] + R.mafEntries[10];
-    fAngle = acosf((fTrace - 1.0f) * 0.5f);
+    float fVal = maxf(minf((fTrace - 1.0f) * 0.5f, 1.0f), -1.0f);
+    fAngle = acosf(fVal);
     axis = normalize(float3(R.mafEntries[9] - R.mafEntries[6], R.mafEntries[2] - R.mafEntries[8], R.mafEntries[4] - R.mafEntries[1]) / (2.0f * sinf(fAngle)));
 }
 
@@ -744,6 +745,6 @@ mat4 makeRotation(
     float3 v0 = normalize(float3(afEntries[0], afEntries[1], afEntries[2]));
     float3 v1 = normalize(float3(afEntries[4], afEntries[5], afEntries[6]));
     float3 v2 = normalize(float3(afEntries[8], afEntries[9], afEntries[10]));
-
+    
     return float4x4(v0, v1, v2);
 }

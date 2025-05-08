@@ -124,3 +124,66 @@ vec3 quaternion::toEuler()
 
 	return ret;
 }
+
+/*
+**
+*/
+float quaternion::dot(quaternion const& q0, quaternion const& q1)
+{
+	return (q0.x * q1.x + q0.y * q1.y + q0.z * q1.z + q0.w * q1.w);
+}
+
+/*
+**
+*/
+quaternion quaternion::normalize(quaternion const& q)
+{
+	float fMag = sqrtf(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+	float fOneOverMag = 1.0f / fMag;
+	return quaternion(q.x * fOneOverMag, q.y * fOneOverMag, q.z * fOneOverMag, q.w * fOneOverMag);
+}
+
+/*
+**
+*/
+quaternion quaternion::slerp(quaternion const& q0, quaternion const& q1, float fT)
+{
+	quaternion q0Copy = q0;
+	quaternion q1Copy = q1;
+
+	float fDP = dot(q0Copy, q1Copy);
+	if(fDP < 0.0f)
+	{
+		q1Copy.x *= -1.0f;
+		q1Copy.y *= -1.0f;
+		q1Copy.z *= -1.0f;
+		q1Copy.w *= -1.0f;
+		fDP *= -1.0f;
+	}
+
+	fDP = minf(1.0f, maxf(-1.0f, fDP));
+	if(fDP > 0.9995f)
+	{
+		quaternion interpolated;
+		interpolated.x = q0.x * (1.0f - fT) + q1.x * fT;
+		interpolated.y = q0.y * (1.0f - fT) + q1.y * fT;
+		interpolated.z = q0.z * (1.0f - fT) + q1.z * fT;
+		interpolated.w = q0.w * (1.0f - fT) + q1.w * fT;
+		return normalize(interpolated);
+	}
+
+	float fTheta0 = acosf(fDP);
+	float fSinTheta0 = sinf(fTheta0);
+
+	float fTheta = fTheta0 * fT;
+	float fSinTheta = sinf(fTheta);
+	float fS0 = sinf(fTheta0 - fTheta) / fSinTheta0;
+	float fS1 = fSinTheta / fSinTheta0;
+
+	float fX = fS0 * q0.x + fS1 * q1.x;
+	float fY = fS0 * q0.y + fS1 * q1.y;
+	float fZ = fS0 * q0.z + fS1 * q1.z;
+	float fW = fS0 * q0.w + fS1 * q1.w;
+
+	return quaternion(fX, fY, fZ, fW);
+}
