@@ -1004,7 +1004,7 @@ void computeLocalBindMatrices(
 */
 void computeLocalAnimationMatrices(
     std::vector<std::vector<float4x4>>& aaLocalAnimationMatrices,
-    std::vector<std::vector<quaternion>>& aaLocalAnimationQuaternions,
+    std::vector<std::vector<AnimFrame>>& aaLocalAnimationKeyFrames,
     std::vector<float4x4> const& aLocalBindMatrices,
     std::vector<AnimFrame> const& aKeyFrames,
     std::vector<Joint> const& aJoints,
@@ -1014,11 +1014,7 @@ void computeLocalAnimationMatrices(
     uint32_t iJointIndex = aKeyFrames[0].miNodeIndex;
     uint32_t iArrayIndex = aiJointToArrayIndices[iJointIndex];
     std::string jointName = aJointMapping[iJointIndex];
-    if(jointName == "head")
-    {
-        int iDebug = 1;
-    }
-
+    
     for(uint32_t iKeyFrame = 0; iKeyFrame < aKeyFrames.size(); iKeyFrame++)
     {
         quaternion q = quaternion(aKeyFrames[iKeyFrame].mRotation.x, aKeyFrames[iKeyFrame].mRotation.y, aKeyFrames[iKeyFrame].mRotation.z, aKeyFrames[iKeyFrame].mRotation.w);
@@ -1029,15 +1025,37 @@ void computeLocalAnimationMatrices(
         float4x4 localMatrix = translationMatrix * rotationMatrix * scaleMatrix;
         float4x4 const& localBindMatrix = aLocalBindMatrices[iArrayIndex];
 
-        float4x4 localAnimationMatrix = localMatrix * invert(localBindMatrix);
+        float4x4 localAnimationMatrix = invert(localBindMatrix) * localMatrix;
+        aaLocalAnimationMatrices[iArrayIndex].push_back(localAnimationMatrix);
+
+        float fScaleX = length(float3(localAnimationMatrix.mafEntries[0], localAnimationMatrix.mafEntries[1], localAnimationMatrix.mafEntries[2]));
+        float fScaleY = length(float3(localAnimationMatrix.mafEntries[4], localAnimationMatrix.mafEntries[5], localAnimationMatrix.mafEntries[6]));
+        float fScaleZ = length(float3(localAnimationMatrix.mafEntries[8], localAnimationMatrix.mafEntries[9], localAnimationMatrix.mafEntries[10]));
+
+        float fOneOverScaleX = 1.0f / fScaleX;
+        float fOneOverScaleY = 1.0f / fScaleY;
+        float fOneOverScaleZ = 1.0f / fScaleZ;
+        localAnimationMatrix.mafEntries[0] *= fOneOverScaleX; localAnimationMatrix.mafEntries[1] *= fOneOverScaleX; localAnimationMatrix.mafEntries[2] *= fOneOverScaleX;
+        localAnimationMatrix.mafEntries[4] *= fOneOverScaleX; localAnimationMatrix.mafEntries[5] *= fOneOverScaleX; localAnimationMatrix.mafEntries[6] *= fOneOverScaleX;
+        localAnimationMatrix.mafEntries[8] *= fOneOverScaleX; localAnimationMatrix.mafEntries[9] *= fOneOverScaleX; localAnimationMatrix.mafEntries[10] *= fOneOverScaleX;
 
         float3 translation = float3(localAnimationMatrix.mafEntries[3], localAnimationMatrix.mafEntries[7], localAnimationMatrix.mafEntries[11]);
         localAnimationMatrix.mafEntries[3] = localAnimationMatrix.mafEntries[7] = localAnimationMatrix.mafEntries[11] = 0.0f;
-
         quaternion newQ = q.fromMatrix(localAnimationMatrix);
+        
+        AnimFrame localAnimFrame = aKeyFrames[iKeyFrame];
+        localAnimFrame.mRotation = float4(newQ.x, newQ.y, newQ.z, newQ.w);
+        localAnimFrame.mTranslation = float4(translation, 1.0f);
+        localAnimFrame.mScaling = float4(fScaleX, fScaleY, fScaleZ, 1.0f);
+        aaLocalAnimationKeyFrames[iArrayIndex].push_back(localAnimFrame);
 
-        aaLocalAnimationQuaternions[iArrayIndex].push_back(newQ);
-        aaLocalAnimationMatrices[iArrayIndex].push_back(localAnimationMatrix);
+        float4x4 verifyScaleMatrix = scale(fScaleX, fScaleY, fScaleZ);
+        float4x4 verifyRotationMatrix = newQ.matrix();
+        float4x4 verifyTranslationMatrix = translate(translation.x, translation.y, translation.z);
+        float4x4 verifyAnimMatrix = verifyTranslationMatrix * verifyRotationMatrix * verifyScaleMatrix;
+        float4x4 verifyLocalMatrix = localBindMatrix * verifyAnimMatrix;
+        bool bIdentical = verifyLocalMatrix.identical(localMatrix, 0.1f);
+        assert(bIdentical);
     }
     
 }
@@ -1049,9 +1067,7 @@ void testTraverseAnimation(
     Joint const& joint,
     float4x4 const& parentMatrix,
     std::vector<Joint> const& aJoints,
-    std::vector<std::vector<AnimFrame>> const& aaKeyFrames,
-    std::vector<std::vector<quaternion>> const& aaAnimationQuaternions,
-    std::vector<std::vector<float4x4>> const& aaLocalAnimationMatrices,
+    std::vector<std::vector<AnimFrame>> const& aaLocalAnimationKeyFrames,
     std::vector<float4x4> const& aLocalBindMatrices,
     std::vector<uint32_t> const& aiJointToArrayIndices,
     std::map<uint32_t, std::string>& aJointMapping,
@@ -1062,9 +1078,9 @@ void testTraverseAnimation(
     std::string jointName = aJointMapping[iJointIndex];
     
     uint32_t iJointKeyFrameIndex = UINT32_MAX;
-    for(uint32_t i = 0; i < aaKeyFrames.size(); i++)
+    for(uint32_t i = 0; i < aaLocalAnimationKeyFrames.size(); i++)
     {
-        if(aaKeyFrames[i][0].miNodeIndex == iJointIndex)
+        if(aaLocalAnimationKeyFrames[i][0].miNodeIndex == iJointIndex)
         {
             iJointKeyFrameIndex = i;
             break;
@@ -1076,8 +1092,8 @@ void testTraverseAnimation(
     quaternion q;
 
     AnimFrame keyFrame;
-    std::vector<AnimFrame> const& aKeyFrames = aaKeyFrames[iJointKeyFrameIndex];
-    for(uint32_t iFrameIndex = 0; iFrameIndex < aaKeyFrames[iJointKeyFrameIndex].size(); iFrameIndex++)
+    std::vector<AnimFrame> const& aKeyFrames = aaLocalAnimationKeyFrames[iJointKeyFrameIndex];
+    for(uint32_t iFrameIndex = 0; iFrameIndex < aaLocalAnimationKeyFrames[iJointKeyFrameIndex].size(); iFrameIndex++)
     {
         if(aKeyFrames[iFrameIndex].mfTime >= fTime)
         {
@@ -1088,17 +1104,10 @@ void testTraverseAnimation(
             float fTimePct = (currFrame.mfTime - prevFrame.mfTime > 0.0f) ? (fTime - prevFrame.mfTime) / (currFrame.mfTime - prevFrame.mfTime) : 0.0f;
             keyFrame.mScaling = prevFrame.mScaling + (currFrame.mScaling - prevFrame.mScaling) * fTimePct;
             keyFrame.mTranslation = prevFrame.mTranslation + (currFrame.mTranslation - prevFrame.mTranslation) * fTimePct;
-            //keyFrame.mRotation.x = prevFrame.mRotation.x + (currFrame.mRotation.x - prevFrame.mRotation.x) * fTimePct;
-            //keyFrame.mRotation.y = prevFrame.mRotation.y + (currFrame.mRotation.y - prevFrame.mRotation.y) * fTimePct;
-            //keyFrame.mRotation.z = prevFrame.mRotation.z + (currFrame.mRotation.z - prevFrame.mRotation.z) * fTimePct;
-            //keyFrame.mRotation.w = prevFrame.mRotation.w + (currFrame.mRotation.w - prevFrame.mRotation.w) * fTimePct;
-
-            //q.x = aaAnimationQuaternions[iArrayIndex][iPrevFrameIndex].x + (aaAnimationQuaternions[iArrayIndex][iFrameIndex].x - aaAnimationQuaternions[iArrayIndex][iPrevFrameIndex].x) * fTimePct;
-            //q.y = aaAnimationQuaternions[iArrayIndex][iPrevFrameIndex].y + (aaAnimationQuaternions[iArrayIndex][iFrameIndex].y - aaAnimationQuaternions[iArrayIndex][iPrevFrameIndex].y) * fTimePct;
-            //q.z = aaAnimationQuaternions[iArrayIndex][iPrevFrameIndex].z + (aaAnimationQuaternions[iArrayIndex][iFrameIndex].z - aaAnimationQuaternions[iArrayIndex][iPrevFrameIndex].z) * fTimePct;
-            //q.w = aaAnimationQuaternions[iArrayIndex][iPrevFrameIndex].w + (aaAnimationQuaternions[iArrayIndex][iFrameIndex].w - aaAnimationQuaternions[iArrayIndex][iPrevFrameIndex].w) * fTimePct;
-            
-            q = quaternion::slerp(aaAnimationQuaternions[iArrayIndex][iPrevFrameIndex], aaAnimationQuaternions[iArrayIndex][iFrameIndex], fTimePct);
+           
+            quaternion prevQ = quaternion(prevFrame.mRotation);
+            quaternion currQ = quaternion(currFrame.mRotation);
+            q = quaternion::slerp(prevQ, currQ, fTimePct);
 
             break;
         }
@@ -1106,14 +1115,10 @@ void testTraverseAnimation(
 
     float4x4 translationMatrix = translate(keyFrame.mTranslation);
     float4x4 scaleMatrix = scale(keyFrame.mScaling);
-    //quaternion q = quaternion(keyFrame.mRotation.x, keyFrame.mRotation.y, keyFrame.mRotation.z, keyFrame.mRotation.w);
-    //float4x4 rotationMatrix = q.matrix();
     float4x4 rotationMatrix = q.matrix();
     float4x4 localAnimationMatrix = translationMatrix * rotationMatrix * scaleMatrix;
-
     
     float4x4 const& localBindMatrix = aLocalBindMatrices[iArrayIndex];
-    //float4x4 const& localAnimationMatrix = aaLocalAnimationMatrices[iArrayIndex][0];
     float4x4 localMatrix = localBindMatrix * localAnimationMatrix;
     float4x4 totalMatrix = parentMatrix * localMatrix;
     DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
@@ -1131,9 +1136,7 @@ void testTraverseAnimation(
             childJoint,
             totalMatrix,
             aJoints,
-            aaKeyFrames,
-            aaAnimationQuaternions,
-            aaLocalAnimationMatrices,
+            aaLocalAnimationKeyFrames,
             aLocalBindMatrices,
             aiJointToArrayIndices,
             aJointMapping,
@@ -1273,12 +1276,12 @@ int main(int argc, char** argv)
     );
 
     std::vector<std::vector<float4x4>> aaSrcLocalAnimationMatrices(aaSrcAnimationFrames.size());
-    std::vector<std::vector<quaternion>> aaSrcLocalAnimationQuaternions(aaSrcAnimationFrames.size());
+    std::vector<std::vector<AnimFrame>> aaSrcLocalAnimationKeyFrames(aaSrcAnimationFrames.size());
     for(uint32_t iJoint = 0; iJoint < aaSrcAnimationFrames.size(); iJoint++)
     {
         computeLocalAnimationMatrices(
             aaSrcLocalAnimationMatrices,
-            aaSrcLocalAnimationQuaternions,
+            aaSrcLocalAnimationKeyFrames, 
             aSrcLocalBindMatrices,
             aaSrcAnimationFrames[iJoint],
             aaSrcJoints[0],
@@ -1301,9 +1304,7 @@ int main(int argc, char** argv)
         aaSrcJoints[0][0],
         float4x4(),
         aaSrcJoints[0],
-        aaSrcAnimationFrames,
-        aaSrcLocalAnimationQuaternions,
-        aaSrcLocalAnimationMatrices,
+        aaSrcLocalAnimationKeyFrames,
         aSrcLocalBindMatrices,
         aaiSrcJointMapIndices[0],
         aaSrcJointMapping["Armature"],
