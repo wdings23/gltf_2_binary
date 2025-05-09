@@ -1722,10 +1722,15 @@ int main(int argc, char** argv)
 
         // src and dst child joint are at the dst joint's local space, we can compute the axis angle between the two to get the rotation
         // needed for the dst child joint to be at src child joint
-        float fAngle = acosf(minf(maxf(dot(srcChildLocalPositionNormalized, dstChildLocalPositionNormalized), -1.0f), 1.0f));
-        float3 axis = normalize(cross(dstChildLocalPositionNormalized, srcChildLocalPositionNormalized));
+        //float fAngle = acosf(minf(maxf(dot(srcChildLocalPositionNormalized, dstChildLocalPositionNormalized), -1.0f), 1.0f));
+        //float3 axis = normalize(cross(dstChildLocalPositionNormalized, srcChildLocalPositionNormalized));
+        float3 axis = cross(dstChildLocalPositionNormalized, srcChildLocalPositionNormalized);
+        float fCos = dot(srcChildLocalPositionNormalized, dstChildLocalPositionNormalized);
+        float fSin = length(axis);
+        float fAngle = atan2f(fSin, fCos);
+        axis = normalize(axis);
         float4x4 r = makeFromAngleAxis(axis, fAngle);
-
+        
         // verify src and dst child joint's position, they should be nearly identical
         float4 verify = mul(float4(dstChildLocalPositionNormalized, 1.0f), r);
         assert(length(float3(verify) - srcChildLocalPositionNormalized) <= 1.0e-4f);
