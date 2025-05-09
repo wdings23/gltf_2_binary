@@ -1347,8 +1347,7 @@ void testTraverseWithLocalJointRotation(
     std::vector<uint32_t> const& aiJointToArrayIndices,
     std::map<uint32_t, std::string>& aJointMapping,
     std::string const& replaceJoint,
-    float4x4 const& replaceLocalAnimationRotationMatrix,
-    float fTime)
+    float4x4 const& replaceLocalAnimationRotationMatrix)
 {
     uint32_t iJointIndex = joint.miIndex;
     uint32_t iArrayIndex = aiJointToArrayIndices[iJointIndex];
@@ -1390,8 +1389,7 @@ void testTraverseWithLocalJointRotation(
             aiJointToArrayIndices,
             aJointMapping,
             replaceJoint,
-            replaceLocalAnimationRotationMatrix,
-            fTime
+            replaceLocalAnimationRotationMatrix
         );
     }
 }
@@ -1451,8 +1449,6 @@ void testTraverseMatchingKeyFrames(
 **
 */
 void getMatchingAnimationFrames(
-    std::vector<float3>& aSrcGlobalAnimatedJointPositions,
-
     std::vector<float3>& aDstGlobalBindJointPositions,
 
     std::vector<float4x4> const& aDstLocalBindMatrices,
@@ -1462,9 +1458,12 @@ void getMatchingAnimationFrames(
     std::vector<uint32_t> const& aiDstJointMapIndices,
     std::vector<Joint> const& aDstJoints,
 
+    std::vector<float3> const& aSrcGlobalAnimatedJointPositions,
     std::map<uint32_t, std::string> const& aSrcJointMapping,
     std::vector<uint32_t> const& aiSrcJointMapIndices,
-    std::vector<Joint> const& aSrcJoints)
+    std::vector<Joint> const& aSrcJoints,
+    
+    float fTime)
 {
     std::vector<float4x4> aAnimMatchingLocalBindMatrices = aDstLocalBindMatrices;
     std::vector<float4x4> aAnimMatchingGlobalBindMatrices = aDstGlobalBindMatrices;
@@ -1591,8 +1590,7 @@ void getMatchingAnimationFrames(
             aiDstJointMapIndices,
             aDstJointMapping,
             aJointMapping[i].second,
-            newLocalMatrix,
-            6.52f
+            newLocalMatrix
         );
     }
 
@@ -1771,7 +1769,7 @@ int main(int argc, char** argv)
         aaDstJointMapping["Armature"]);
 
     std::vector<float3> aDstGlobalBindJointPositions(aaDstJoints[0].size());
-
+    
     DEBUG_PRINTF("******************* DST *********************\n");
     for(uint32_t i = 0; i < (uint32_t)aaDstGlobalBindMatrices.size(); i++)
     {
@@ -1795,22 +1793,42 @@ int main(int argc, char** argv)
         }
     }
 
-    getMatchingAnimationFrames(
-        aSrcGlobalAnimatedJointPositions,
+    std::vector<float3> aDstGlobalBindJointPositionsCopy = aDstGlobalBindJointPositions;
+    for(uint32_t i = 0; i < aaSrcLocalAnimationKeyFrames[0].size(); i++)
+    {
+        float fTime = aaSrcLocalAnimationKeyFrames[0][i].mfTime;
 
-        aDstGlobalBindJointPositions,
+        std::vector<float3> aSrcGlobalAnimatedJointPositions;
+        testTraverseAnimation(
+            aSrcGlobalAnimatedJointPositions,
+            aaSrcJoints[0][0],
+            float4x4(),
+            aaSrcJoints[0],
+            aaSrcLocalAnimationKeyFrames,
+            aSrcLocalBindMatrices,
+            aaiSrcJointMapIndices[0],
+            aaSrcJointMapping["Armature"],
+            fTime
+        );
 
-        aDstLocalBindMatrices,
-        aaDstGlobalBindMatrices[0],
+        aDstGlobalBindJointPositions = aDstGlobalBindJointPositionsCopy;
+        getMatchingAnimationFrames(
+            aDstGlobalBindJointPositions,
 
-        aaDstJointMapping["Armature"],
-        aaiDstJointMapIndices[0],
-        aaDstJoints[0],
+            aDstLocalBindMatrices,
+            aaDstGlobalBindMatrices[0],
 
-        aaSrcJointMapping["Armature"],
-        aaiSrcJointMapIndices[0],
-        aaSrcJoints[0]
-    );
+            aaDstJointMapping["Armature"],
+            aaiDstJointMapIndices[0],
+            aaDstJoints[0],
+
+            aSrcGlobalAnimatedJointPositions,
+            aaSrcJointMapping["Armature"],
+            aaiSrcJointMapIndices[0],
+            aaSrcJoints[0],
+            fTime
+        );
+    }
 
     return 0;
 }
