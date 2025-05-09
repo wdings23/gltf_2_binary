@@ -1497,11 +1497,13 @@ int main(int argc, char** argv)
             uint32_t iArrayIndex = aaiSrcJointMapIndices[i][iJointIndex];
 
             float3 pos = float3(aaSrcGlobalBindMatrices[i][iArrayIndex].mafEntries[3], aaSrcGlobalBindMatrices[i][iArrayIndex].mafEntries[7], aaSrcGlobalBindMatrices[i][iArrayIndex].mafEntries[11]);
-            DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
+            DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\") # joint index: %d array index: %d\n",
                 pos.x,
                 pos.y,
                 pos.z,
-                jointName.c_str()
+                jointName.c_str(),
+                iJointIndex,
+                iArrayIndex
             );
         }
     }
@@ -1541,10 +1543,9 @@ int main(int argc, char** argv)
         aaiDstJointMapIndices,
         aaDstJointMapping);
 
-    float3 spineToPelvis = normalize(float3(0.0f, 1.0f, 0.0f) - float3(0.0f, 0.0f, 0.0f));
-    float3 hipsToSpine = normalize(float3(0.0f, 0.0f, -1.0f) - float3(0.0f, 0.0f, 0.0f));
     float4x4 matchingRootMatrix = rotateMatrixY(3.14159f) * rotateMatrixX(3.14159f * 0.5f) * scale(10.0f, 10.0f, 10.0f);
 
+    // apply root joint's to identity matrix to all joints
     for(uint32_t i = 0; i < aaDstGlobalBindMatrices[0].size(); i++)
     {
         aaDstGlobalBindMatrices[0][i] = matchingRootMatrix * aaDstGlobalBindMatrices[0][i];
@@ -1570,7 +1571,7 @@ int main(int argc, char** argv)
             uint32_t iArrayIndex = aaiDstJointMapIndices[i][iJointIndex];
 
             float3 pos = float3(aaDstGlobalBindMatrices[i][iArrayIndex].mafEntries[3], aaDstGlobalBindMatrices[i][iArrayIndex].mafEntries[7], aaDstGlobalBindMatrices[i][iArrayIndex].mafEntries[11]);
-            DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.001, 255, 0, 0, 255, \"%s\") # joint index: %d array index: %d\n",
+            DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\") # joint index: %d array index: %d\n",
                 pos.x,
                 pos.y,
                 pos.z,
@@ -1589,9 +1590,19 @@ int main(int argc, char** argv)
     std::vector<std::pair<std::string, std::string>> aJointMapping;
     aJointMapping.push_back(std::make_pair("left_upper_arm", "mixamorig:LeftArm"));
     aJointMapping.push_back(std::make_pair("left_forearm", "mixamorig:LeftForeArm"));
+    aJointMapping.push_back(std::make_pair("left_thigh", "mixamorig:LeftUpLeg"));
+    aJointMapping.push_back(std::make_pair("left_leg", "mixamorig:LeftLeg"));
+
     aJointMapping.push_back(std::make_pair("right_upper_arm", "mixamorig:RightArm"));
     aJointMapping.push_back(std::make_pair("right_forearm", "mixamorig:RightForeArm"));
-    
+    aJointMapping.push_back(std::make_pair("right_thigh", "mixamorig:RightUpLeg"));
+    aJointMapping.push_back(std::make_pair("right_leg", "mixamorig:RightLeg"));
+
+    aJointMapping.push_back(std::make_pair("pelvis", "mixamorig:Hips"));
+    aJointMapping.push_back(std::make_pair("spine0", "mixamorig:Spine1"));
+    aJointMapping.push_back(std::make_pair("spine1", "mixamorig:Spine2"));
+    aJointMapping.push_back(std::make_pair("neck", "mixamorig:Neck"));
+
     for(uint32_t i = 0; i < aJointMapping.size(); i++)
     {
         uint32_t iSrcJointIndex = UINT32_MAX;
@@ -1630,12 +1641,7 @@ int main(int argc, char** argv)
         float3 dstGlobalBindJointPosition = aDstGlobalBindJointPositions[iDstArrayIndex];
         float3 dstGlobalBindChildJointPosition = aDstGlobalBindJointPositions[iDstChildArrayIndex];
 
-        //float3 v0 = normalize(float3(aAnimMatchingGlobalBindMatrices[iDstArrayIndex].mafEntries[0], aAnimMatchingGlobalBindMatrices[iDstArrayIndex].mafEntries[1], aAnimMatchingGlobalBindMatrices[iDstArrayIndex].mafEntries[2]));
-        //float3 v1 = normalize(float3(aAnimMatchingGlobalBindMatrices[iDstArrayIndex].mafEntries[4], aAnimMatchingGlobalBindMatrices[iDstArrayIndex].mafEntries[5], aAnimMatchingGlobalBindMatrices[iDstArrayIndex].mafEntries[6]));
-        //float3 v2 = normalize(float3(aAnimMatchingGlobalBindMatrices[iDstArrayIndex].mafEntries[8], aAnimMatchingGlobalBindMatrices[iDstArrayIndex].mafEntries[9], aAnimMatchingGlobalBindMatrices[iDstArrayIndex].mafEntries[10]));
-        //float4x4 dstGlobalBindMatrix = float4x4(v0, v1, v2);
         float4x4 dstGlobalBindMatrix = aAnimMatchingGlobalBindMatrices[iDstArrayIndex];
-
         dstGlobalBindMatrix.mafEntries[3] = srcGlobalAnimatedJointPosition.x; dstGlobalBindMatrix.mafEntries[7] = srcGlobalAnimatedJointPosition.y; dstGlobalBindMatrix.mafEntries[11] = srcGlobalAnimatedJointPosition.z;
         float4x4 inverseDstToSrcGlobalBindMatrix = invert(dstGlobalBindMatrix);
         float4 srcChildLocalPosition = mul(float4(srcGlobalAnimatedChildJointPosition, 1.0f), inverseDstToSrcGlobalBindMatrix);
@@ -1644,7 +1650,6 @@ int main(int argc, char** argv)
         float4 verifyInverse = inverseDstToSrcGlobalBindMatrix * float4(srcGlobalAnimatedJointPosition, 1.0f);
         assert(length(float3(verifyInverse)) <= 1.0e-3f);
 
-        //dstGlobalBindMatrix = float4x4(v0, v1, v2);
         dstGlobalBindMatrix.mafEntries[3] = aAnimMatchingGlobalBindMatrices[iDstArrayIndex].mafEntries[3];
         dstGlobalBindMatrix.mafEntries[7] = aAnimMatchingGlobalBindMatrices[iDstArrayIndex].mafEntries[7];
         dstGlobalBindMatrix.mafEntries[11] = aAnimMatchingGlobalBindMatrices[iDstArrayIndex].mafEntries[11];
@@ -1665,6 +1670,8 @@ int main(int argc, char** argv)
     
         float4x4 localAnimationMatrix = r;
         float4x4 newLocalMatrix = aDstLocalBindMatrices[iDstArrayIndex] * localAnimationMatrix;
+
+        DEBUG_PRINTF("**************************\n");
 
         aDstGlobalBindJointPositions.clear();
         aDstGlobalBindJointPositions.resize(aaDstJoints[0].size());
