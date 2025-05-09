@@ -1449,6 +1449,7 @@ void testTraverseMatchingKeyFrames(
 **
 */
 void getMatchingAnimationFrames(
+    std::vector<AnimFrame>& aDstMatchingAnimFrames,
     std::vector<float3>& aDstGlobalBindJointPositions,
 
     std::vector<float4x4> const& aDstLocalBindMatrices,
@@ -1483,8 +1484,6 @@ void getMatchingAnimationFrames(
     aJointMapping.push_back(std::make_pair("spine0", "mixamorig:Spine1"));
     aJointMapping.push_back(std::make_pair("spine1", "mixamorig:Spine2"));
     aJointMapping.push_back(std::make_pair("neck", "mixamorig:Neck"));
-
-    std::vector<AnimFrame> aDstMatchingAnimFrames;
 
     for(uint32_t i = 0; i < aJointMapping.size(); i++)
     {
@@ -1793,6 +1792,7 @@ int main(int argc, char** argv)
         }
     }
 
+    std::vector< std::vector<AnimFrame>> aaDstMatchingAnimFrames;
     std::vector<float3> aDstGlobalBindJointPositionsCopy = aDstGlobalBindJointPositions;
     for(uint32_t i = 0; i < aaSrcLocalAnimationKeyFrames[0].size(); i++)
     {
@@ -1811,8 +1811,11 @@ int main(int argc, char** argv)
             fTime
         );
 
+        std::vector<AnimFrame> aDstMatchingAnimFrames;
+
         aDstGlobalBindJointPositions = aDstGlobalBindJointPositionsCopy;
         getMatchingAnimationFrames(
+            aDstMatchingAnimFrames,
             aDstGlobalBindJointPositions,
 
             aDstLocalBindMatrices,
@@ -1828,6 +1831,8 @@ int main(int argc, char** argv)
             aaSrcJoints[0],
             fTime
         );
+
+        aaDstMatchingAnimFrames.push_back(aDstMatchingAnimFrames);
     }
 
     return 0;
