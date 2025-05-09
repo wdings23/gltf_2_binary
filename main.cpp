@@ -1399,6 +1399,57 @@ void testTraverseWithLocalJointRotation(
 /*
 **
 */
+void testTraverseMatchingKeyFrames(
+    Joint const& joint,
+    float4x4 const& parentMatrix,
+    std::vector<Joint> const& aJoints,
+    std::vector<float4x4> const& aLocalBindMatrices,
+    std::vector<AnimFrame> const& aAnimFrames,
+    std::vector<uint32_t> const& aiJointToArrayIndices,
+    std::map<uint32_t, std::string>& aJointMapping)
+{
+    uint32_t iArrayIndex = aiJointToArrayIndices[joint.miIndex];
+    float4x4 const& localMatrix = aLocalBindMatrices[iArrayIndex];
+    float4x4 localAnimMatrix = localMatrix;
+    for(auto const& animFrame : aAnimFrames)
+    {
+        if(animFrame.miNodeIndex == joint.miIndex)
+        {
+            float4x4 rotationMatrix = makeFromAngleAxis(float3(animFrame.mRotation), animFrame.mRotation.w);
+            localAnimMatrix = aLocalBindMatrices[iArrayIndex] * rotationMatrix;
+                
+            break;
+        }
+    }
+
+    float4x4 totalMatrix = parentMatrix * localAnimMatrix;
+    std::string jointName = aJointMapping[joint.miIndex];
+    DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
+        totalMatrix.mafEntries[3],
+        totalMatrix.mafEntries[7],
+        totalMatrix.mafEntries[11],
+        jointName.c_str()
+    );
+
+    for(uint32_t iChild = 0; iChild < joint.miNumChildren; iChild++)
+    {
+        uint32_t iChildArrayIndex = aiJointToArrayIndices[joint.maiChildren[iChild]];
+        Joint const& childJoint = aJoints[iChildArrayIndex];
+        testTraverseMatchingKeyFrames(
+            childJoint,
+            totalMatrix,
+            aJoints,
+            aLocalBindMatrices,
+            aAnimFrames,
+            aiJointToArrayIndices,
+            aJointMapping
+        );
+    }
+}
+
+/*
+**
+*/
 int main(int argc, char** argv)
 {
     PrintOptions printOptions;
@@ -1603,6 +1654,8 @@ int main(int argc, char** argv)
     aJointMapping.push_back(std::make_pair("spine1", "mixamorig:Spine2"));
     aJointMapping.push_back(std::make_pair("neck", "mixamorig:Neck"));
 
+    std::vector<AnimFrame> aDstMatchingAnimFrames;
+    
     for(uint32_t i = 0; i < aJointMapping.size(); i++)
     {
         uint32_t iSrcJointIndex = UINT32_MAX;
@@ -1671,6 +1724,12 @@ int main(int argc, char** argv)
         float4x4 localAnimationMatrix = r;
         float4x4 newLocalMatrix = aDstLocalBindMatrices[iDstArrayIndex] * localAnimationMatrix;
 
+        AnimFrame matchingAnimFrame;
+        matchingAnimFrame.mfTime = 6.52f;
+        matchingAnimFrame.miNodeIndex = iDstJointIndex;
+        matchingAnimFrame.mRotation = float4(axis, fAngle);
+        aDstMatchingAnimFrames.push_back(matchingAnimFrame);
+
         DEBUG_PRINTF("**************************\n");
 
         aDstGlobalBindJointPositions.clear();
@@ -1689,6 +1748,16 @@ int main(int argc, char** argv)
             6.52f
         );
     }
+
+    testTraverseMatchingKeyFrames(
+        aaDstJoints[0][0],
+        float4x4(),
+        aaDstJoints[0],
+        aDstLocalBindMatrices,
+        aDstMatchingAnimFrames,
+        aaiDstJointMapIndices[0],
+        aaDstJointMapping["Armature"]
+    );
 
     return 0;
 }
