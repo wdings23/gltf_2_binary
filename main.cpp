@@ -1658,6 +1658,7 @@ int main(int argc, char** argv)
     
     for(uint32_t i = 0; i < aJointMapping.size(); i++)
     {
+        // src joint and array indices
         uint32_t iSrcJointIndex = UINT32_MAX;
         std::string const& srcJointName = aJointMapping[i].first;
         for(auto const& keyValue : aaSrcJointMapping["Armature"])
@@ -1673,6 +1674,7 @@ int main(int argc, char** argv)
         uint32_t iSrcChildJointIndex = srcJoint.maiChildren[0];
         uint32_t iSrcChildArrayIndex = aaiSrcJointMapIndices[0][iSrcChildJointIndex];
 
+        // dst joint and array indices
         uint32_t iDstJointIndex = UINT32_MAX;
         std::string const& dstJointName = aJointMapping[i].second;
         for(auto const& keyValue : aaDstJointMapping["Armature"])
@@ -1688,42 +1690,51 @@ int main(int argc, char** argv)
         uint32_t iDstChildJointIndex = dstJoint.maiChildren[0];
         uint32_t iDstChildArrayIndex = aaiDstJointMapIndices[0][iDstChildJointIndex];
         
+        // global current and child joint positions at the current time 
         float3 srcGlobalAnimatedJointPosition = aSrcGlobalAnimatedJointPositions[iSrcArrayIndex];
         float3 srcGlobalAnimatedChildJointPosition = aSrcGlobalAnimatedJointPositions[iSrcChildArrayIndex];
-
         float3 dstGlobalBindJointPosition = aDstGlobalBindJointPositions[iDstArrayIndex];
         float3 dstGlobalBindChildJointPosition = aDstGlobalBindJointPositions[iDstChildArrayIndex];
 
+        // transform src's child joint into dst joint's local space by applying the inverse of the dst global bind matrix with the src joint's position to bring the src child joint to dst local space
         float4x4 dstGlobalBindMatrix = aAnimMatchingGlobalBindMatrices[iDstArrayIndex];
         dstGlobalBindMatrix.mafEntries[3] = srcGlobalAnimatedJointPosition.x; dstGlobalBindMatrix.mafEntries[7] = srcGlobalAnimatedJointPosition.y; dstGlobalBindMatrix.mafEntries[11] = srcGlobalAnimatedJointPosition.z;
         float4x4 inverseDstToSrcGlobalBindMatrix = invert(dstGlobalBindMatrix);
         float4 srcChildLocalPosition = mul(float4(srcGlobalAnimatedChildJointPosition, 1.0f), inverseDstToSrcGlobalBindMatrix);
         float3 srcChildLocalPositionNormalized = normalize(float3(srcChildLocalPosition));
 
+        // verify correct bind matrix, src joint position should be at the origin
         float4 verifyInverse = inverseDstToSrcGlobalBindMatrix * float4(srcGlobalAnimatedJointPosition, 1.0f);
         assert(length(float3(verifyInverse)) <= 1.0e-3f);
 
+        // apply the inverse current global bind matrix to the dst child joint
+        // get the normalized vector, origin is the dst joint position in local space
         dstGlobalBindMatrix.mafEntries[3] = aAnimMatchingGlobalBindMatrices[iDstArrayIndex].mafEntries[3];
         dstGlobalBindMatrix.mafEntries[7] = aAnimMatchingGlobalBindMatrices[iDstArrayIndex].mafEntries[7];
         dstGlobalBindMatrix.mafEntries[11] = aAnimMatchingGlobalBindMatrices[iDstArrayIndex].mafEntries[11];
-
         float4x4 inverseDstGlobalBindMatrix = invert(dstGlobalBindMatrix);
         float4 dstChildLocalPosition = mul(float4(dstGlobalBindChildJointPosition, 1.0f), inverseDstGlobalBindMatrix);
         float3 dstChildLocalPositionNormalized = normalize(float3(dstChildLocalPosition));
 
+        // verify correct bind matrix, dst joint position should be at the origin
         verifyInverse = mul(float4(dstGlobalBindJointPosition, 1.0f), inverseDstGlobalBindMatrix);
         assert(length(float3(verifyInverse)) <= 1.0e-3f);
 
+        // src and dst child joint are at the dst joint's local space, we can compute the axis angle between the two to get the rotation
+        // needed for the dst child joint to be at src child joint
         float fAngle = acosf(minf(maxf(dot(srcChildLocalPositionNormalized, dstChildLocalPositionNormalized), -1.0f), 1.0f));
         float3 axis = normalize(cross(dstChildLocalPositionNormalized, srcChildLocalPositionNormalized));
-
         float4x4 r = makeFromAngleAxis(axis, fAngle);
+
+        // verify src and dst child joint's position, they should be nearly identical
         float4 verify = mul(float4(dstChildLocalPositionNormalized, 1.0f), r);
         assert(length(float3(verify) - srcChildLocalPositionNormalized) <= 1.0e-4f);
     
+        // new local animation matrix
         float4x4 localAnimationMatrix = r;
         float4x4 newLocalMatrix = aDstLocalBindMatrices[iDstArrayIndex] * localAnimationMatrix;
 
+        // new local animation axis angle rotation key frame
         AnimFrame matchingAnimFrame;
         matchingAnimFrame.mfTime = 6.52f;
         matchingAnimFrame.miNodeIndex = iDstJointIndex;
