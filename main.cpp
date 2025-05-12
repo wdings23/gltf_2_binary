@@ -1122,12 +1122,12 @@ void testTraverseAnimation(
     float4x4 const& localBindMatrix = aLocalBindMatrices[iArrayIndex];
     float4x4 localMatrix = localBindMatrix * localAnimationMatrix;
     float4x4 totalMatrix = parentMatrix * localMatrix;
-    DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
-        totalMatrix.mafEntries[3],
-        totalMatrix.mafEntries[7],
-        totalMatrix.mafEntries[11],
-        jointName.c_str()
-    );
+    //DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
+    //    totalMatrix.mafEntries[3],
+    //    totalMatrix.mafEntries[7],
+    //    totalMatrix.mafEntries[11],
+    //    jointName.c_str()
+    //);
 
     aGlobalJointPositions.push_back(float3(totalMatrix.mafEntries[3], totalMatrix.mafEntries[7], totalMatrix.mafEntries[11]));
 
@@ -1366,12 +1366,12 @@ void testTraverseWithLocalJointRotation(
     float4x4 totalMatrix = parentMatrix * localMatrix;
     aAnimMatchingGlobalBindMatrices[iArrayIndex] = totalMatrix;
     
-    DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
-        totalMatrix.mafEntries[3],
-        totalMatrix.mafEntries[7],
-        totalMatrix.mafEntries[11],
-        jointName.c_str()
-    );
+    //DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
+    //    totalMatrix.mafEntries[3],
+    //    totalMatrix.mafEntries[7],
+    //    totalMatrix.mafEntries[11],
+    //    jointName.c_str()
+    //);
 
     aGlobalJointPositions[iArrayIndex] = float3(totalMatrix.mafEntries[3], totalMatrix.mafEntries[7], totalMatrix.mafEntries[11]);
 
@@ -1557,7 +1557,10 @@ void getMatchingAnimationFrames(
         float fCos = dot(srcChildLocalPositionNormalized, dstChildLocalPositionNormalized);
         float fSin = length(axis);
         float fAngle = atan2f(fSin, fCos);
-        axis = normalize(axis);
+        if(fabs(fSin) > 0.0f)
+        {
+            axis = normalize(axis);
+        }
         float4x4 r = makeFromAngleAxis(axis, fAngle);
 
         // verify src and dst child joint's position, they should be nearly identical
@@ -1575,7 +1578,7 @@ void getMatchingAnimationFrames(
         matchingAnimFrame.mRotation = float4(axis, fAngle);
         aDstMatchingAnimFrames.push_back(matchingAnimFrame);
 
-        DEBUG_PRINTF("**************************\n");
+        //DEBUG_PRINTF("**************************\n");
 
         aDstGlobalBindJointPositions.clear();
         aDstGlobalBindJointPositions.resize(aDstJoints.size());
@@ -1630,8 +1633,8 @@ int main(int argc, char** argv)
     std::map<std::string, std::map<uint32_t, std::string>> aaSrcJointMapping;
 
     loadGLTF(
-        "d:\\test\\github-projects\\test_assets\\animations2\\spider-man-bind-new-rig-ik-batting.gltf",
-        "d:\\test\\github-projects\\test_assets\\animations2\\spider-man-batting.wad",
+        "/Users/dingwings/Downloads/assets/spider-man-bind-new-rig-ik-batting.gltf",
+        "/Users/dingwings/Downloads/assets/spider-man-batting.wad",
         aaSrcMeshPositions,
         aaSrcMeshNormals,
         aaSrcMeshTexCoords,
@@ -1733,8 +1736,8 @@ int main(int argc, char** argv)
     std::map<std::string, std::map<uint32_t, std::string>> aaDstJointMapping;
 
     loadGLTF(
-        "d:\\test\\python-webgpu\\assets\\chun-li-punch.gltf",
-        "d:\\test\\python-webgpu\\assets\\chun-li-punch.wad",
+        "/Users/dingwings/Downloads/assets/chun-li-punch.gltf",
+        "/Users/dingwings/Downloads/assets/chun-li-punch.wad",
         aaDstMeshPositions,
         aaDstMeshNormals,
         aaDstMeshTexCoords,
