@@ -95,7 +95,7 @@ void loadGLTF(
 
         for(const auto& mesh : model.meshes)
         {
-            DEBUG_PRINTF("mesh: %s primitives: %d\n", mesh.name.c_str(), mesh.primitives.size());
+            DEBUG_PRINTF("mesh: %s primitives: %zu\n", mesh.name.c_str(), mesh.primitives.size());
 
             for(const auto& primitive : mesh.primitives)
             {
@@ -150,7 +150,7 @@ void loadGLTF(
                     size_t byteOffset = bufferView.byteOffset + accessor.byteOffset;
                     const unsigned char* dataPtr = buffer.data.data() + byteOffset;
 
-                    DEBUG_PRINTF("\tvertex count: %d\n", accessor.count);
+                    DEBUG_PRINTF("\tvertex count: %zu\n", accessor.count);
 
                     // Assume float3 (VEC3, float)
                     if(accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT &&
@@ -217,7 +217,7 @@ void loadGLTF(
     {
         for(const auto& mesh : model.meshes)
         {
-            DEBUG_PRINTF("mesh: %s primitives: %d\n", mesh.name.c_str(), mesh.primitives.size());
+            DEBUG_PRINTF("mesh: %s primitives: %zu\n", mesh.name.c_str(), mesh.primitives.size());
 
             for(const auto& primitive : mesh.primitives)
             {
@@ -270,7 +270,7 @@ void loadGLTF(
                         aafVertexWeights.push_back(weight[2]);
                         aafVertexWeights.push_back(weight[3]);
 
-                        DEBUG_PRINTF("v %d joint: [%d, %d, %d, %d] weights: [%.4f, %.4f, %.4f, %.4f]\n",
+                        DEBUG_PRINTF("v %zu joint: [%d, %d, %d, %d] weights: [%.4f, %.4f, %.4f, %.4f]\n",
                             i,
                             joint[0], joint[1], joint[2], joint[3],
                             weight[0], weight[1], weight[2], weight[3]);
@@ -293,7 +293,7 @@ void loadGLTF(
                         aafVertexWeights.push_back(weight[2]);
                         aafVertexWeights.push_back(weight[3]);
 
-                        DEBUG_PRINTF("v %d joint: [%d, %d, %d, %d] weights: [%.4f, %.4f, %.4f, %.4f]\n",
+                        DEBUG_PRINTF("v %zu joint: [%d, %d, %d, %d] weights: [%.4f, %.4f, %.4f, %.4f]\n",
                             i,
                             joint[0], joint[1], joint[2], joint[3],
                             weight[0], weight[1], weight[2], weight[3]);
@@ -401,7 +401,7 @@ void loadGLTF(
         // skin
         for(const auto& skin : model.skins)
         {
-            DEBUG_PRINTF("skin name: %s num joints: %d\n", skin.name.c_str(), skin.joints.size());
+            DEBUG_PRINTF("skin name: %s num joints: %zu\n", skin.name.c_str(), skin.joints.size());
 
             const tinygltf::Accessor& ibmAccessor = model.accessors[skin.inverseBindMatrices];
             const tinygltf::BufferView& ibmView = model.bufferViews[ibmAccessor.bufferView];
@@ -479,7 +479,7 @@ void loadGLTF(
         for(size_t i = 0; i < model.animations.size(); ++i) 
         {
             const tinygltf::Animation& anim = model.animations[i];
-            DEBUG_PRINTF("animation %d name: %s\n", i, anim.name.c_str());
+            DEBUG_PRINTF("animation %zu name: %s\n", i, anim.name.c_str());
 
             std::vector<float4> aTranslations;
             std::vector<float4> aRotations;
@@ -512,7 +512,7 @@ void loadGLTF(
                 const float* valueData = reinterpret_cast<const float*>(
                     outputBuffer.data.data() + outputBufferView.byteOffset + outputAccessor.byteOffset);
 
-                DEBUG_PRINTF("\t\tnum key frames: %d\n", inputAccessor.count);
+                DEBUG_PRINTF("\t\tnum key frames: %zu\n", inputAccessor.count);
 
                 // channel data
                 std::vector<float> afTime;
@@ -1836,6 +1836,29 @@ int main(int argc, char** argv)
         );
 
         aaDstMatchingAnimFrames.push_back(aDstMatchingAnimFrames);
+    }
+
+    // save out dst local bind matrices
+    {
+        FILE* fp = fopen("/Users/dingwings/Downloads/assets/local_bind_matrices.bin", "wb");
+        uint32_t iNumJoints = (uint32_t)aDstLocalBindMatrices.size();
+        fwrite(&iNumJoints, sizeof(uint32_t), 1, fp);
+        fwrite(aDstLocalBindMatrices.data(), sizeof(float4x4), iNumJoints, fp);
+        fclose(fp);
+    }
+
+    // save out animation frames
+    {
+        FILE* fp = fopen("/Users/dingwings/Downloads/assets/matching_animation_frames.anm", "wb");
+        uint32_t iTotalAnimFrames = (uint32_t)aaDstMatchingAnimFrames.size();
+        fwrite(&iTotalAnimFrames, sizeof(uint32_t), 1, fp);
+        for(uint32_t i = 0; i < (uint32_t)aaDstMatchingAnimFrames.size(); i++)
+        {
+            uint32_t iNumMatchingJointFrames = (uint32_t)aaDstMatchingAnimFrames[i].size();
+            fwrite(&iNumMatchingJointFrames, sizeof(uint32_t), 1, fp);
+            fwrite(aaDstMatchingAnimFrames[i].data(), sizeof(AnimFrame), iNumMatchingJointFrames, fp);
+        }
+        fclose(fp);
     }
 
     return 0;
