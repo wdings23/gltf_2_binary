@@ -610,7 +610,7 @@ void loadGLTF(
         fwrite(aMeshNormals.data(), sizeof(float3), iNumMeshNormals, fp);
 
         std::vector<float2> const& aMeshTexCoords = aaMeshTexCoords[i];
-        uint32_t iNumMeshTexCoords = (uint32_t)aaMeshTexCoords.size();
+        uint32_t iNumMeshTexCoords = (uint32_t)aMeshTexCoords.size();
         fwrite(&iNumMeshTexCoords, sizeof(uint32_t), 1, fp);
         fwrite(aMeshTexCoords.data(), sizeof(float2), iNumMeshTexCoords, fp);
 
@@ -647,16 +647,20 @@ void loadGLTF(
     
     // animation hierarchy
     uint32_t iNumAnimHierarchies = (uint32_t)aaJoints.size();
+    assert(iNumAnimHierarchies == aaJointLocalBindMatrices.size());
     fwrite(&iNumAnimHierarchies, sizeof(uint32_t), 1, fp);
-    for(uint32_t i = 0; i < (uint32_t)aaJoints.size(); i++)
+    for(uint32_t i = 0; i < iNumAnimHierarchies; i++)
     {
         std::vector<Joint> const& aJoints = aaJoints[i];
         uint32_t iNumJoints = (uint32_t)aJoints.size();
         fwrite(&iNumJoints, sizeof(uint32_t), 1, fp);
         fwrite(aJoints.data(), sizeof(Joint), iNumJoints, fp);
+        fwrite(aaJointLocalBindMatrices[i].data(), sizeof(float4x4), iNumJoints, fp);
     }
 
     // joint to array mapping
+    uint32_t iNumJointMapIndices = (uint32_t)aaiJointMapIndices.size();
+    fwrite(&iNumJointMapIndices, sizeof(uint32_t), 1, fp);
     for(uint32_t i = 0; i < (uint32_t)aaiJointMapIndices.size(); i++)
     {
         uint32_t iNumJoints = (uint32_t)aaiJointMapIndices[i].size();
@@ -665,6 +669,8 @@ void loadGLTF(
     }
 
     // save out joint mapping
+    uint32_t iNumJointMappings = (uint32_t)aaJointMapping.size();
+    fwrite(&iNumJointMappings, sizeof(uint32_t), 1, fp);
     for(auto const& aJointMappingKeyValue : aaJointMapping)
     {
         uint32_t iNumJoints = (uint32_t)aJointMappingKeyValue.second.size();
@@ -684,9 +690,6 @@ void loadGLTF(
 
     fclose(fp);
 
-    //Joint rootJoint = aaAnimHierarchy[0].front();
-    //float4x4 const* pMatrix = &aaGlobalInverseBindMatrices[0][rootJoint.miIndex];
-    //float4x4 rootMatrix = invert(transpose(*pMatrix));
     
     std::map<uint32_t, float4x4> aGlobalJointAnimatedMatrices;
     float4x4 rootMatrix;
@@ -711,64 +714,6 @@ void loadGLTF(
         float4x4 m = invert(transpose(aaGlobalInverseBindMatrices[0][i]));
         aGlobalJointBindMatrices[joint.miIndex] = m;
     }
-
-    // test rotation conversion of bind root to spin0 joint in bind pose to animated pose
-    {
-        uint32_t iRootJointIndex = 0;
-        uint32_t iRootArrayIndex = aaiJointMapIndices[0][iRootJointIndex];
-        Joint const& rootJoint = aaJoints[0][0];
-        uint32_t iChildJointIndex = rootJoint.maiChildren[0];
-        uint32_t iChildArrayIndex = aaiJointMapIndices[0][iChildJointIndex];
-        Joint const& childJoint = aaJoints[0][iChildArrayIndex];
-        
-        // animated joint position
-        float3 rootJointAnimatedPosition = float3(
-            aGlobalJointAnimatedMatrices[rootJoint.miIndex].mafEntries[3],
-            aGlobalJointAnimatedMatrices[rootJoint.miIndex].mafEntries[7],
-            aGlobalJointAnimatedMatrices[rootJoint.miIndex].mafEntries[11]
-        );
-        float3 childJointAnimatedPosition = float3(
-            aGlobalJointAnimatedMatrices[childJoint.miIndex].mafEntries[3],
-            aGlobalJointAnimatedMatrices[childJoint.miIndex].mafEntries[7],
-            aGlobalJointAnimatedMatrices[childJoint.miIndex].mafEntries[11]
-        );
-
-        // bind joint positions
-        float3 rootJointBindPosition = float3(
-            aGlobalJointBindMatrices[rootJoint.miIndex].mafEntries[3],
-            aGlobalJointBindMatrices[rootJoint.miIndex].mafEntries[7],
-            aGlobalJointBindMatrices[rootJoint.miIndex].mafEntries[11]
-        );
-        float3 childJointBindPosition = float3(
-            aGlobalJointBindMatrices[childJoint.miIndex].mafEntries[3],
-            aGlobalJointBindMatrices[childJoint.miIndex].mafEntries[7],
-            aGlobalJointBindMatrices[childJoint.miIndex].mafEntries[11]
-        );
-
-        // root to spine joint vector
-        float3 bindPositionDiff = childJointBindPosition - rootJointBindPosition;
-        float3 animPositionDiff = childJointAnimatedPosition - rootJointAnimatedPosition;
-        float3 bindPositionDiffNormalized = normalize(bindPositionDiff);
-        float3 animPositionDiffNormalized = normalize(animPositionDiff);
-        
-        float4x4 R = makeRotation(animPositionDiffNormalized, bindPositionDiffNormalized);
-
-        float3 axis;
-        float fAngle;
-        makeAngleAxis(axis, fAngle, R);
-
-        float4x4 m = makeFromAngleAxis(axis, fAngle);
-
-        float4 test = R * float4(bindPositionDiffNormalized, 1.0f);
-        float4 test2 = m * float4(bindPositionDiffNormalized, 1.0f);
-
-        float3 diff = float3(test2) - animPositionDiffNormalized;
-        float fLength = length(diff);
-
-        int iDebug = 1;
-    }
-
-    int iDebug = 1;
 }
 
 /*
@@ -1573,7 +1518,7 @@ void getMatchingAnimationFrames(
 
         // new local animation axis angle rotation key frame
         AnimFrame matchingAnimFrame;
-        matchingAnimFrame.mfTime = 6.52f;
+        matchingAnimFrame.mfTime = fTime;
         matchingAnimFrame.miNodeIndex = iDstJointIndex;
         matchingAnimFrame.mRotation = float4(axis, fAngle);
         aDstMatchingAnimFrames.push_back(matchingAnimFrame);
