@@ -560,7 +560,7 @@ void loadGLTF(
 
                 if(iChannel > 0 && iChannel % 3 == 0)
                 {
-                    assert(aRotations.size() == aTranslations.size() && aTranslations.size() == aScalings.size());
+                    //assert(aRotations.size() == aTranslations.size() && aTranslations.size() == aScalings.size());
                     aafTime.push_back(afTime);
 
                     std::vector<AnimFrame> aAnimationFrames(aRotations.size());
@@ -570,7 +570,7 @@ void loadGLTF(
 
                         animationFrame.mRotation = aRotations[i];
                         animationFrame.mTranslation = aTranslations[i];
-                        animationFrame.mScaling = aScalings[i];
+                        animationFrame.mScaling = float4(1.0f, 1.0f, 1.0f, 1.0f); //aScalings[i];
                         animationFrame.mfTime = afTime[i];
                         animationFrame.miNodeIndex = aiNodeIndices[i];
                     }
@@ -780,8 +780,6 @@ void traverseRig(
         keyFrame.mRotation.y = prevKeyFrame.mRotation.y + (currKeyFrame.mRotation.y - prevKeyFrame.mRotation.y) * fPct;
         keyFrame.mRotation.z = prevKeyFrame.mRotation.z + (currKeyFrame.mRotation.z - prevKeyFrame.mRotation.z) * fPct;
         keyFrame.mRotation.w = prevKeyFrame.mRotation.w + (currKeyFrame.mRotation.w - prevKeyFrame.mRotation.w) * fPct;
-
-        int iDebug = 1;
     }
 
     float4x4 translateMatrix = translate(keyFrame.mTranslation);
@@ -1354,11 +1352,12 @@ void testTraverseMatchingKeyFrames(
     uint32_t iArrayIndex = aiJointToArrayIndices[joint.miIndex];
     float4x4 const& localMatrix = aLocalBindMatrices[iArrayIndex];
     float4x4 localAnimMatrix = localMatrix;
+    float4x4 rotationMatrix;
     for(auto const& animFrame : aAnimFrames)
     {
         if(animFrame.miNodeIndex == joint.miIndex)
         {
-            float4x4 rotationMatrix = makeFromAngleAxis(float3(animFrame.mRotation), animFrame.mRotation.w);
+            rotationMatrix = makeFromAngleAxis(float3(animFrame.mRotation), animFrame.mRotation.w);
             localAnimMatrix = aLocalBindMatrices[iArrayIndex] * rotationMatrix;
                 
             break;
@@ -1680,9 +1679,14 @@ int main(int argc, char** argv)
     std::vector<std::vector<uint32_t>> aaiDstJointMapIndices;
     std::map<std::string, std::map<uint32_t, std::string>> aaDstJointMapping;
 
+    std::string baseDstName = "chun-li-rotated";
+    std::string dir = "/Users/dingwings/Downloads/assets";
+
+    std::string dstGLTFFilePath = dir + "/" + baseDstName + ".gltf";
+    std::string dstWADFilePath = dir + "/" + baseDstName + ".wad";
     loadGLTF(
-        "/Users/dingwings/Downloads/assets/chun-li-punch.gltf",
-        "/Users/dingwings/Downloads/assets/chun-li-punch.wad",
+        dstGLTFFilePath,
+        dstWADFilePath,
         aaDstMeshPositions,
         aaDstMeshNormals,
         aaDstMeshTexCoords,
@@ -1699,6 +1703,7 @@ int main(int argc, char** argv)
         aaiDstJointMapIndices,
         aaDstJointMapping);
 
+#if 0
     float4x4 matchingRootMatrix = rotateMatrixY(3.14159f) * rotateMatrixX(3.14159f * 0.5f) * scale(10.0f, 10.0f, 10.0f);
 
     // apply root joint's to identity matrix to all joints
@@ -1706,6 +1711,7 @@ int main(int argc, char** argv)
     {
         aaDstGlobalBindMatrices[0][i] = matchingRootMatrix * aaDstGlobalBindMatrices[0][i];
     }
+#endif // #if 0
 
     std::vector<float4x4> aDstLocalBindMatrices;
     computeLocalBindMatrices(
@@ -1785,16 +1791,52 @@ int main(int argc, char** argv)
 
     // save out dst local bind matrices
     {
-        FILE* fp = fopen("/Users/dingwings/Downloads/assets/local_bind_matrices.bin", "wb");
+        std::string dstLocalBindMatrixFilePath = dir + "/" + baseDstName + "-local-bind-matrices.bin";
+        FILE* fp = fopen(dstLocalBindMatrixFilePath.c_str(), "wb");
         uint32_t iNumJoints = (uint32_t)aDstLocalBindMatrices.size();
         fwrite(&iNumJoints, sizeof(uint32_t), 1, fp);
         fwrite(aDstLocalBindMatrices.data(), sizeof(float4x4), iNumJoints, fp);
         fclose(fp);
+
+        DEBUG_PRINTF("wrote to: \"%s\"\n", dstLocalBindMatrixFilePath.c_str());
+    }
+
+    // save out dst global bind matrices
+    {
+        std::string dstGlobalBindMatrixFilePath = dir + "/" + baseDstName + "-global-bind-matrices.bin";
+        FILE* fp = fopen(dstGlobalBindMatrixFilePath.c_str(), "wb");
+        uint32_t iNumJoints = (uint32_t)aaDstGlobalBindMatrices[0].size();
+        fwrite(&iNumJoints, sizeof(uint32_t), 1, fp);
+        fwrite(aaDstGlobalBindMatrices[0].data(), sizeof(float4x4), iNumJoints, fp);
+        fclose(fp);
+
+        DEBUG_PRINTF("wrote to: \"%s\"\n", dstGlobalBindMatrixFilePath.c_str());
+    }
+
+    // save out dst inverse global bind matrices
+    {
+        std::vector<float4x4> aDstInverseGlobalBindMatrices(aaDstGlobalBindMatrices[0].size());
+        for(uint32_t i = 0; i < (uint32_t)aDstGlobalBindJointPositions.size(); i++)
+        {
+            aDstInverseGlobalBindMatrices[i] = invert(aaDstGlobalBindMatrices[0][i]);
+            float4x4 verify = aaDstGlobalBindMatrices[0][i] * aDstInverseGlobalBindMatrices[i];
+            assert(verify.identical(float4x4(), 1.0e-4f));
+        }
+
+        std::string dstInverseGlobalBindMatrixPath = dir + "/" + baseDstName + "-inverse-global-bind-matrices.bin";
+        FILE* fp = fopen(dstInverseGlobalBindMatrixPath.c_str(), "wb");
+        uint32_t iNumJoints = (uint32_t)aDstInverseGlobalBindMatrices.size();
+        fwrite(&iNumJoints, sizeof(uint32_t), 1, fp);
+        fwrite(aDstInverseGlobalBindMatrices.data(), sizeof(float4x4), iNumJoints, fp);
+        fclose(fp);
+
+        DEBUG_PRINTF("wrote to: \"%s\"\n", dstInverseGlobalBindMatrixPath.c_str());
     }
 
     // save out animation frames
     {
-        FILE* fp = fopen("/Users/dingwings/Downloads/assets/matching_animation_frames.anm", "wb");
+        std::string dstMatchingAnimationFramePath = dir + "/" + baseDstName + "-matching-animation-frames.anm";
+        FILE* fp = fopen(dstMatchingAnimationFramePath.c_str(), "wb");
         uint32_t iTotalAnimFrames = (uint32_t)aaDstMatchingAnimFrames.size();
         fwrite(&iTotalAnimFrames, sizeof(uint32_t), 1, fp);
         for(uint32_t i = 0; i < (uint32_t)aaDstMatchingAnimFrames.size(); i++)
@@ -1804,6 +1846,8 @@ int main(int argc, char** argv)
             fwrite(aaDstMatchingAnimFrames[i].data(), sizeof(AnimFrame), iNumMatchingJointFrames, fp);
         }
         fclose(fp);
+
+        DEBUG_PRINTF("wrote to: \"%s\"\n", dstMatchingAnimationFramePath.c_str());
     }
 
     return 0;
