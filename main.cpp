@@ -1065,12 +1065,12 @@ void testTraverseAnimation(
     float4x4 const& localBindMatrix = aLocalBindMatrices[iArrayIndex];
     float4x4 localMatrix = localBindMatrix * localAnimationMatrix;
     float4x4 totalMatrix = parentMatrix * localMatrix;
-    //DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
-    //    totalMatrix.mafEntries[3],
-    //    totalMatrix.mafEntries[7],
-    //    totalMatrix.mafEntries[11],
-    //    jointName.c_str()
-    //);
+    DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
+        totalMatrix.mafEntries[3],
+        totalMatrix.mafEntries[7],
+        totalMatrix.mafEntries[11],
+        jointName.c_str()
+    );
 
     aGlobalJointPositions.push_back(float3(totalMatrix.mafEntries[3], totalMatrix.mafEntries[7], totalMatrix.mafEntries[11]));
 
@@ -1639,7 +1639,7 @@ int main(int argc, char** argv)
         aSrcLocalBindMatrices,
         aaiSrcJointMapIndices[0],
         aaSrcJointMapping["Armature"],
-        6.52f
+        0.0f
     );
 
     DEBUG_PRINTF("******************* SRC *********************\n");
@@ -1679,7 +1679,7 @@ int main(int argc, char** argv)
     std::vector<std::vector<uint32_t>> aaiDstJointMapIndices;
     std::map<std::string, std::map<uint32_t, std::string>> aaDstJointMapping;
 
-    std::string baseDstName = "chun-li-rotated";
+    std::string baseDstName = "chun-li-rotated-2";
     std::string dir = "/Users/dingwings/Downloads/assets";
 
     std::string dstGLTFFilePath = dir + "/" + baseDstName + ".gltf";
