@@ -18,6 +18,8 @@
 
 #include <utils/LogPrint.h>
 
+#include <rapidjson/document.h>
+
 struct AnimFrame
 {
     float           mfTime;
@@ -38,6 +40,12 @@ struct Joint
     float3      mTranslation;
     float3      mScaling;
 };
+
+void saveMatrices(
+    std::string const& dir,
+    std::string const& baseName,
+    std::vector<float4x4> const& aLocalBindMatrices,
+    std::vector<float4x4> const& aGlobalBindMatrices);
 
 void traverseRig(
     std::map<uint32_t, float4x4>& aGlobalJointPositions,
@@ -1408,12 +1416,44 @@ void getMatchingAnimationFrames(
     std::vector<uint32_t> const& aiSrcJointMapIndices,
     std::vector<Joint> const& aSrcJoints,
     
-    float fTime)
+    float fTime,
+    
+    std::string const& dir,
+    std::string const& jointMappingFileName)
 {
     std::vector<float4x4> aAnimMatchingLocalBindMatrices = aDstLocalBindMatrices;
     std::vector<float4x4> aAnimMatchingGlobalBindMatrices = aDstGlobalBindMatrices;
 
     std::vector<std::pair<std::string, std::string>> aJointMapping;
+    {
+        std::string fullPath = dir + "/" + jointMappingFileName;
+        FILE* fp = fopen(fullPath.c_str(), "rb");
+        fseek(fp, 0, SEEK_END);
+        uint64_t iFileSize = (uint64_t)ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+        std::vector<char> acFileContent(iFileSize + 1);
+        acFileContent[iFileSize] = 0;
+        fread(acFileContent.data(), sizeof(char), iFileSize, fp);
+        fclose(fp);
+
+        rapidjson::Document doc;
+        doc.Parse(acFileContent.data());
+        auto jointMapping = doc["JointMapping"].GetArray();
+        for(auto& map: jointMapping)
+        {
+            auto jointName = map["name"].GetString();
+            auto mapJointName = map["joint"].GetString();
+            aJointMapping.push_back(std::pair(std::string(jointName), std::string(mapJointName)));
+        }
+        
+    }
+
+#if 0
+    aJointMapping.push_back(std::make_pair("pelvis", "mixamorig:Hips"));
+    aJointMapping.push_back(std::make_pair("spine0", "mixamorig:Spine"));
+    aJointMapping.push_back(std::make_pair("spine1", "mixamorig:Spine1"));
+    aJointMapping.push_back(std::make_pair("neck", "mixamorig:Neck"));
+
     aJointMapping.push_back(std::make_pair("left_upper_arm", "mixamorig:LeftArm"));
     aJointMapping.push_back(std::make_pair("left_forearm", "mixamorig:LeftForeArm"));
     aJointMapping.push_back(std::make_pair("left_thigh", "mixamorig:LeftUpLeg"));
@@ -1423,11 +1463,7 @@ void getMatchingAnimationFrames(
     aJointMapping.push_back(std::make_pair("right_forearm", "mixamorig:RightForeArm"));
     aJointMapping.push_back(std::make_pair("right_thigh", "mixamorig:RightUpLeg"));
     aJointMapping.push_back(std::make_pair("right_leg", "mixamorig:RightLeg"));
-
-    aJointMapping.push_back(std::make_pair("pelvis", "mixamorig:Hips"));
-    aJointMapping.push_back(std::make_pair("spine0", "mixamorig:Spine1"));
-    aJointMapping.push_back(std::make_pair("spine1", "mixamorig:Spine2"));
-    aJointMapping.push_back(std::make_pair("neck", "mixamorig:Neck"));
+#endif // #if 0
 
     for(uint32_t i = 0; i < aJointMapping.size(); i++)
     {
@@ -1560,6 +1596,13 @@ int main(int argc, char** argv)
     printOptions.mbDisplayTime = false;
     DEBUG_PRINTF_SET_OPTIONS(printOptions);
 
+    std::string dir = "/Users/dingwings/Downloads/assets";
+    std::string baseSrcName = "spider-man-bind-new-rig-ik-batting";
+    std::string srcGTLFFilePath = dir + "/" + baseSrcName + ".gltf";
+    std::string srcWADFilePath = dir + "/" + baseSrcName + ".wad";
+
+    // NOTE: animation frames are in global range
+
     std::vector<std::vector<float3>> aaSrcMeshPositions;
     std::vector<std::vector<float3>> aaSrcMeshNormals;
     std::vector<std::vector<float2>> aaSrcMeshTexCoords;
@@ -1577,8 +1620,8 @@ int main(int argc, char** argv)
     std::map<std::string, std::map<uint32_t, std::string>> aaSrcJointMapping;
 
     loadGLTF(
-        "/Users/dingwings/Downloads/assets/spider-man-bind-new-rig-ik-batting.gltf",
-        "/Users/dingwings/Downloads/assets/spider-man-batting.wad",
+        srcGTLFFilePath, //"/Users/dingwings/Downloads/assets/spider-man-bind-new-rig-ik-batting.gltf",
+        srcWADFilePath, //"/Users/dingwings/Downloads/assets/spider-man-batting.wad",
         aaSrcMeshPositions,
         aaSrcMeshNormals,
         aaSrcMeshTexCoords,
@@ -1618,6 +1661,13 @@ int main(int argc, char** argv)
             aaSrcJointMapping["Armature"]
         );
     }
+
+    saveMatrices(
+        dir,
+        baseSrcName,
+        aSrcLocalBindMatrices,
+        aaSrcGlobalBindMatrices[0]
+    );
 
     testTraverseAnimationNoLocalBind(
         aaSrcJoints[0][0],
@@ -1680,8 +1730,7 @@ int main(int argc, char** argv)
     std::map<std::string, std::map<uint32_t, std::string>> aaDstJointMapping;
 
     std::string baseDstName = "chun-li-rotated-2";
-    std::string dir = "/Users/dingwings/Downloads/assets";
-
+    
     std::string dstGLTFFilePath = dir + "/" + baseDstName + ".gltf";
     std::string dstWADFilePath = dir + "/" + baseDstName + ".wad";
     loadGLTF(
@@ -1751,7 +1800,6 @@ int main(int argc, char** argv)
     for(uint32_t i = 0; i < aaSrcLocalAnimationKeyFrames[0].size(); i++)
     {
         float fTime = aaSrcLocalAnimationKeyFrames[0][i].mfTime;
-
         std::vector<float3> aSrcGlobalAnimatedJointPositions;
         testTraverseAnimation(
             aSrcGlobalAnimatedJointPositions,
@@ -1766,7 +1814,6 @@ int main(int argc, char** argv)
         );
 
         std::vector<AnimFrame> aDstMatchingAnimFrames;
-
         aDstGlobalBindJointPositions = aDstGlobalBindJointPositionsCopy;
         getMatchingAnimationFrames(
             aDstMatchingAnimFrames,
@@ -1783,12 +1830,16 @@ int main(int argc, char** argv)
             aaSrcJointMapping["Armature"],
             aaiSrcJointMapIndices[0],
             aaSrcJoints[0],
-            fTime
+            fTime,
+
+            dir,
+            "chun-li-joint-mapping.json"
         );
 
         aaDstMatchingAnimFrames.push_back(aDstMatchingAnimFrames);
     }
 
+#if 0
     // save out dst local bind matrices
     {
         std::string dstLocalBindMatrixFilePath = dir + "/" + baseDstName + "-local-bind-matrices.bin";
@@ -1832,6 +1883,13 @@ int main(int argc, char** argv)
 
         DEBUG_PRINTF("wrote to: \"%s\"\n", dstInverseGlobalBindMatrixPath.c_str());
     }
+#endif // #if 0
+    saveMatrices(
+        dir,
+        baseDstName,
+        aDstLocalBindMatrices,
+        aaDstGlobalBindMatrices[0]
+    );
 
     // save out animation frames
     {
@@ -1851,4 +1909,58 @@ int main(int argc, char** argv)
     }
 
     return 0;
+}
+
+/*
+**
+*/
+void saveMatrices(
+    std::string const& dir,
+    std::string const& baseName,
+    std::vector<float4x4> const& aLocalBindMatrices,
+    std::vector<float4x4> const& aGlobalBindMatrices)
+{
+    // save out dst local bind matrices
+    {
+        std::string dstLocalBindMatrixFilePath = dir + "/" + baseName + "-local-bind-matrices.bin";
+        FILE* fp = fopen(dstLocalBindMatrixFilePath.c_str(), "wb");
+        uint32_t iNumJoints = (uint32_t)aLocalBindMatrices.size();
+        fwrite(&iNumJoints, sizeof(uint32_t), 1, fp);
+        fwrite(aLocalBindMatrices.data(), sizeof(float4x4), iNumJoints, fp);
+        fclose(fp);
+
+        DEBUG_PRINTF("wrote to: \"%s\"\n", dstLocalBindMatrixFilePath.c_str());
+    }
+
+    // save out dst global bind matrices
+    {
+        std::string dstGlobalBindMatrixFilePath = dir + "/" + baseName + "-global-bind-matrices.bin";
+        FILE* fp = fopen(dstGlobalBindMatrixFilePath.c_str(), "wb");
+        uint32_t iNumJoints = (uint32_t)aGlobalBindMatrices.size();
+        fwrite(&iNumJoints, sizeof(uint32_t), 1, fp);
+        fwrite(aGlobalBindMatrices.data(), sizeof(float4x4), iNumJoints, fp);
+        fclose(fp);
+
+        DEBUG_PRINTF("wrote to: \"%s\"\n", dstGlobalBindMatrixFilePath.c_str());
+    }
+
+    // save out dst inverse global bind matrices
+    {
+        std::vector<float4x4> aDstInverseGlobalBindMatrices(aGlobalBindMatrices.size());
+        for(uint32_t i = 0; i < (uint32_t)aGlobalBindMatrices.size(); i++)
+        {
+            aDstInverseGlobalBindMatrices[i] = invert(aGlobalBindMatrices[i]);
+            float4x4 verify = aGlobalBindMatrices[i] * aDstInverseGlobalBindMatrices[i];
+            assert(verify.identical(float4x4(), 1.0e-4f));
+        }
+
+        std::string dstInverseGlobalBindMatrixPath = dir + "/" + baseName + "-inverse-global-bind-matrices.bin";
+        FILE* fp = fopen(dstInverseGlobalBindMatrixPath.c_str(), "wb");
+        uint32_t iNumJoints = (uint32_t)aDstInverseGlobalBindMatrices.size();
+        fwrite(&iNumJoints, sizeof(uint32_t), 1, fp);
+        fwrite(aDstInverseGlobalBindMatrices.data(), sizeof(float4x4), iNumJoints, fp);
+        fclose(fp);
+
+        DEBUG_PRINTF("wrote to: \"%s\"\n", dstInverseGlobalBindMatrixPath.c_str());
+    }
 }
