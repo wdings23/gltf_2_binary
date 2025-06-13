@@ -1015,7 +1015,8 @@ void computeLocalAnimationMatrices(
 **
 */
 void testTraverseAnimation(
-    std::vector<float3>& aGlobalJointPositions,
+    //std::vector<float3>& aGlobalJointPositions,
+    std::vector<float4x4>& aGlobalJointMatrices,
     Joint const& joint,
     float4x4 const& parentMatrix,
     std::vector<Joint> const& aJoints,
@@ -1080,14 +1081,16 @@ void testTraverseAnimation(
         jointName.c_str()
     );
 
-    aGlobalJointPositions.push_back(float3(totalMatrix.mafEntries[3], totalMatrix.mafEntries[7], totalMatrix.mafEntries[11]));
+    //aGlobalJointPositions.push_back(float3(totalMatrix.mafEntries[3], totalMatrix.mafEntries[7], totalMatrix.mafEntries[11]));
+    aGlobalJointMatrices.push_back(totalMatrix);
 
     for(uint32_t iChild = 0; iChild < joint.miNumChildren; iChild++)
     {
         uint32_t iChildArrayIndex = aiJointToArrayIndices[joint.maiChildren[iChild]];
         Joint childJoint = aJoints[iChildArrayIndex];
         testTraverseAnimation(
-            aGlobalJointPositions,
+            //aGlobalJointPositions,
+            aGlobalJointMatrices,
             childJoint,
             totalMatrix,
             aJoints,
@@ -1680,8 +1683,10 @@ int main(int argc, char** argv)
     );
 
     std::vector<float3> aSrcGlobalAnimatedJointPositions;
+    std::vector<float4x4> aSrcGlobalAnimatedJointMatrices;
     testTraverseAnimation(
-        aSrcGlobalAnimatedJointPositions,
+        //aSrcGlobalAnimatedJointPositions,
+        aSrcGlobalAnimatedJointMatrices,
         aaSrcJoints[0][0],
         float4x4(),
         aaSrcJoints[0],
@@ -1691,6 +1696,17 @@ int main(int argc, char** argv)
         aaSrcJointMapping["Armature"],
         0.0f
     );
+
+    for(uint32_t i = 0; i < aSrcGlobalAnimatedJointMatrices.size(); i++)
+    {
+        aSrcGlobalAnimatedJointPositions.push_back(
+            float3(
+                aSrcGlobalAnimatedJointMatrices[i].mafEntries[3],
+                aSrcGlobalAnimatedJointMatrices[i].mafEntries[7],
+                aSrcGlobalAnimatedJointMatrices[i].mafEntries[11]
+            )
+        );
+    }
 
     DEBUG_PRINTF("******************* SRC *********************\n");
     for(uint32_t i = 0; i < (uint32_t)aaSrcGlobalBindMatrices.size(); i++)
@@ -1801,8 +1817,11 @@ int main(int argc, char** argv)
     {
         float fTime = aaSrcLocalAnimationKeyFrames[0][i].mfTime;
         std::vector<float3> aSrcGlobalAnimatedJointPositions;
+        std::vector<float4x4> aSrcGlobalAnimatedJointMatrices;
+        std::vector<float4> aSrcGlobalAxisAngles;
         testTraverseAnimation(
-            aSrcGlobalAnimatedJointPositions,
+            //aSrcGlobalAnimatedJointPositions,
+            aSrcGlobalAnimatedJointMatrices,
             aaSrcJoints[0][0],
             float4x4(),
             aaSrcJoints[0],
@@ -1812,6 +1831,22 @@ int main(int argc, char** argv)
             aaSrcJointMapping["Armature"],
             fTime
         );
+
+        for(uint32_t i = 0; i < aSrcGlobalAnimatedJointMatrices.size(); i++)
+        {
+            aSrcGlobalAnimatedJointPositions.push_back(
+                float3(
+                    aSrcGlobalAnimatedJointMatrices[i].mafEntries[3],
+                    aSrcGlobalAnimatedJointMatrices[i].mafEntries[7],
+                    aSrcGlobalAnimatedJointMatrices[i].mafEntries[11]
+                )
+            );
+
+            float3 globalAxis = float3(0.0f, 0.0f, 0.0f);
+            float fGlobalAngle = 0.0f;
+            makeAngleAxis(globalAxis, fGlobalAngle, aSrcGlobalAnimatedJointMatrices[i]);
+            aSrcGlobalAxisAngles.push_back(float4(globalAxis.x, globalAxis.y, globalAxis.z, fGlobalAngle));
+        }
 
         std::vector<AnimFrame> aDstMatchingAnimFrames;
         aDstGlobalBindJointPositions = aDstGlobalBindJointPositionsCopy;
