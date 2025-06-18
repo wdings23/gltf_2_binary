@@ -678,7 +678,14 @@ void makeAngleAxis(
     float fTrace = R.mafEntries[0] + R.mafEntries[5] + R.mafEntries[10];
     float fVal = maxf(minf((fTrace - 1.0f) * 0.5f, 1.0f), -1.0f);
     fAngle = acosf(fVal);
-    axis = normalize(float3(R.mafEntries[9] - R.mafEntries[6], R.mafEntries[2] - R.mafEntries[8], R.mafEntries[4] - R.mafEntries[1]) / (2.0f * sinf(fAngle)));
+    if(fAngle == 0.0f)
+    {
+        axis = float3(1.0f, 0.0f, 0.0f);
+    }
+    else
+    {
+        axis = normalize(float3(R.mafEntries[9] - R.mafEntries[6], R.mafEntries[2] - R.mafEntries[8], R.mafEntries[4] - R.mafEntries[1]) / (2.0f * sinf(fAngle)));
+    }
 }
 
 /*

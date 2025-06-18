@@ -44,7 +44,20 @@ struct quaternion
         );
     }
     
+#if 0
     quaternion fromAngleAxis(vec3 const& axis, float fAngle)
+    {
+        vec3 scalar = axis * sinf(fAngle * 0.5f);
+        return quaternion(
+            scalar.x,
+            scalar.y,
+            scalar.z,
+            cosf(fAngle * 0.5f)
+        );
+    }
+#endif // #if 0
+
+    static quaternion fromAngleAxis(vec3 const& axis, float fAngle)
     {
         vec3 scalar = axis * sinf(fAngle * 0.5f);
         return quaternion(
@@ -68,7 +81,7 @@ struct quaternion
         
         return ret;
     }
-    
+
     mat4 matrix() const;
 
 	quaternion fromMatrix(mat4 const& mat);
