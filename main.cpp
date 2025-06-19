@@ -1478,11 +1478,13 @@ void getMatchingAnimationFrames(
 
 // test test test
 uint32_t iTest = 0;
-float3 dominantAxis = float3(1.0f, 0.0f, 0.0f);
-float3 dominantTangent = float3(0.0f, 1.0f, 0.0f);
-float3 dominantBinormal = float3(0.0f, 0.0f, 1.0f);
+float3 dominantAxis = float3(0.0f, 1.0f, 0.0f);
+float3 dominantTangent = float3(1.0f, 0.0f, 0.0f);
 float fDominantAngle = 0.0f;
+float3 testGlobalBindAxis = float3(0.0f, 0.0f, 0.0f);
+float fTestGlobalBindAngle = 0.0f;
 if(srcJointName == "pelvis" || srcJointName == "neck" || srcJointName == "spine0" || srcJointName == "spine1")
+//if(srcJointName == "left_upper_arm")
 {
     iTest = 1;
 
@@ -1500,7 +1502,29 @@ if(srcJointName == "pelvis" || srcJointName == "neck" || srcJointName == "spine0
             aSrcGlobalBindMatrices[iSrcChildArrayIndex].mafEntries[11]
         );
     }
-    dominantAxis = normalize(childPos - pos);
+    
+    float4x4 inverseSrcGlobalBindMatrix = invert(aSrcGlobalBindMatrices[iSrcArrayIndex]);
+    float4x4 inverseSrcChildGlobalMatrix = invert(aSrcGlobalBindMatrices[iSrcChildArrayIndex]);
+
+    float4 invJointPos = mul(
+        float4(pos.x, pos.y, pos.z, 1.0f),
+        inverseSrcGlobalBindMatrix
+    );
+
+    float4 invChildJointPos = mul(
+        float4(childPos.x, childPos.y, childPos.z, 1.0f),
+        inverseSrcGlobalBindMatrix
+    );
+
+    float3 srcToChildDiff = 
+        float3(invChildJointPos.x, invChildJointPos.y, invChildJointPos.z) - 
+        float3(invJointPos.x, invJointPos.y, invJointPos.z);
+
+    float3 srcToChildDir = normalize(srcToChildDiff);
+
+    //dominantAxis = normalize(childPos - pos);
+    dominantAxis = srcToChildDir;
+//#if 0
     if(fabsf(dominantAxis.x) > fabsf(dominantAxis.y) && fabsf(dominantAxis.x) > fabsf(dominantAxis.z))
     {
         dominantAxis = float3(1.0f, 0.0f, 0.0f);
@@ -1513,20 +1537,35 @@ if(srcJointName == "pelvis" || srcJointName == "neck" || srcJointName == "spine0
     {
         dominantAxis = float3(0.0f, 0.0f, 1.0f);
     }
+//#endif // #if 0
 
-    float3 up = (fabsf(dominantAxis.y) > 0.99f) ? float3(0.0f, 0.0f, 1.0f) : float3(0.0f, 1.0f, 0.0f);
-    dominantTangent = normalize(cross(up, dominantAxis));
-    dominantBinormal = normalize(cross(dominantAxis, dominantTangent));
+    float3 up = (fabsf(dominantAxis.y) > 0.99f) ? float3(1.0f, 0.0f, 0.0f) : float3(0.0f, 1.0f, 0.0f);
+    dominantTangent = normalize(cross(dominantAxis, up));
+    //dominantTangent.x = fabsf(dominantTangent.x);
+    //dominantTangent.y = fabsf(dominantTangent.y);
+    //dominantTangent.z = fabsf(dominantTangent.z);
+
+    float4x4 rotationOnlyMatrix = aSrcGlobalAnimatedJointMatrices[iSrcArrayIndex];
+    rotationOnlyMatrix.mafEntries[3] = rotationOnlyMatrix.mafEntries[7] = rotationOnlyMatrix.mafEntries[11] = 0.0f;
+    float3 row0 = normalize(float3(rotationOnlyMatrix.mafEntries[0], rotationOnlyMatrix.mafEntries[1], rotationOnlyMatrix.mafEntries[2]));
+    float3 row1 = normalize(float3(rotationOnlyMatrix.mafEntries[4], rotationOnlyMatrix.mafEntries[5], rotationOnlyMatrix.mafEntries[6]));
+    float3 row2 = normalize(float3(rotationOnlyMatrix.mafEntries[8], rotationOnlyMatrix.mafEntries[9], rotationOnlyMatrix.mafEntries[10]));
+
+    rotationOnlyMatrix.mafEntries[0] = row0.x; rotationOnlyMatrix.mafEntries[1] = row0.y; rotationOnlyMatrix.mafEntries[2] = row0.z;
+    rotationOnlyMatrix.mafEntries[4] = row1.x; rotationOnlyMatrix.mafEntries[5] = row1.y; rotationOnlyMatrix.mafEntries[6] = row1.z;
+    rotationOnlyMatrix.mafEntries[8] = row2.x; rotationOnlyMatrix.mafEntries[9] = row2.y; rotationOnlyMatrix.mafEntries[10] = row2.z;
 
     float4 srcAnimatedTangent = mul(
         float4(dominantTangent.x, dominantTangent.y, dominantTangent.z, 1.0f),
-        aSrcGlobalAnimatedJointMatrices[iSrcArrayIndex]
+        rotationOnlyMatrix
     );
+
+    srcAnimatedTangent.y = 0.0f;
     float3 srcAnimatedTangentXYZ = normalize(srcAnimatedTangent);
     float fDP = dot(srcAnimatedTangentXYZ, dominantTangent);
     fDominantAngle = acosf(fDP);
 
-    DEBUG_PRINTF("joint %s dominant axis (%.4f, %.4f, %.4f) dominant tangent (%.4f, %.4f, %.4f) dominant angle: %.4f\n",
+    DEBUG_PRINTF("joint \"%s\" dominant axis (%.4f, %.4f, %.4f) dominant tangent (%.4f, %.4f, %.4f) dominant angle: %.4f\n",
         srcJointName.c_str(),
         dominantAxis.x, dominantAxis.y, dominantAxis.z,
         dominantTangent.x, dominantTangent.y, dominantTangent.z,
@@ -1586,45 +1625,44 @@ if(srcJointName == "pelvis" || srcJointName == "neck" || srcJointName == "spine0
 
         // src and dst child joint are at the dst joint's local space, we can compute the axis angle between the two to get the rotation
         // needed for the dst child joint to be at src child joint
+        // this is in local coordinate space
         //float fAngle = acosf(minf(maxf(dot(srcChildLocalPositionNormalized, dstChildLocalPositionNormalized), -1.0f), 1.0f));
         //float3 axis = normalize(cross(dstChildLocalPositionNormalized, srcChildLocalPositionNormalized));
-        float3 axis = cross(dstChildLocalPositionNormalized, srcChildLocalPositionNormalized);
+        float3 localAxis = cross(dstChildLocalPositionNormalized, srcChildLocalPositionNormalized);
         float fCos = dot(srcChildLocalPositionNormalized, dstChildLocalPositionNormalized);
-        float fSin = length(axis);
-        float fAngle = atan2f(fSin, fCos);
+        float fSin = length(localAxis);
+        float fLocalAngle = atan2f(fSin, fCos);
         if(fabs(fSin) > 0.0f)
         {
-            axis = normalize(axis);
+            localAxis = normalize(localAxis);
         }
-        float4x4 r = makeFromAngleAxis(axis, fAngle);
+        float4x4 r = makeFromAngleAxis(localAxis, fLocalAngle);
 
         // verify src and dst child joint's position, they should be nearly identical
         float4 verify = mul(float4(dstChildLocalPositionNormalized, 1.0f), r);
         assert(length(float3(verify) - srcChildLocalPositionNormalized) <= 1.0e-4f);
 
-
-
 if(iTest > 0)
 {
-//dominantAxis = float3(0.0f, 1.0f, 0.0f);
-//fDominantAngle = 3.14159f * 0.5f;
-
-    quaternion q0 = quaternion::fromAngleAxis(axis, fAngle);
+    quaternion q0 = quaternion::fromAngleAxis(localAxis, fLocalAngle);
     quaternion q1 = quaternion::fromAngleAxis(dominantAxis, fDominantAngle);
-    //q1 = quaternion::fromAngleAxis(float3(0.0f, 1.0f, 0.0f), 0.6f);
 
-    //q1 = quaternion::fromAngleAxis(float3(0.0f, 1.0f, 0.0f), 3.14159f * 0.25f);
-    
     quaternion totalQ = q1 * q0;
     float4 totalAxisAngle = totalQ.toAngleAxis();
     r = makeFromAngleAxis(
         float3(totalAxisAngle.x, totalAxisAngle.y, totalAxisAngle.z),
         totalAxisAngle.w
     ); 
-    axis = float3(totalAxisAngle.x, totalAxisAngle.y, totalAxisAngle.z);
-    fAngle = totalAxisAngle.w;
-}
+    localAxis = float3(totalAxisAngle.x, totalAxisAngle.y, totalAxisAngle.z);
+    fLocalAngle = totalAxisAngle.w;
 
+
+    
+
+    float3 dstGlobalBindJointPosition = aDstGlobalBindJointPositions[iDstArrayIndex];
+    float3 dstGlobalBindChildJointPosition = aDstGlobalBindJointPositions[iDstChildArrayIndex];
+
+}
 
         // new local animation matrix
         float4x4 localAnimationMatrix = r;
@@ -1634,7 +1672,7 @@ if(iTest > 0)
         AnimFrame matchingAnimFrame;
         matchingAnimFrame.mfTime = fTime;
         matchingAnimFrame.miNodeIndex = iDstJointIndex;
-        matchingAnimFrame.mRotation = float4(axis, fAngle);
+        matchingAnimFrame.mRotation = float4(localAxis, fLocalAngle);
         aDstMatchingAnimFrames.push_back(matchingAnimFrame);
 
         //DEBUG_PRINTF("**************************\n");
