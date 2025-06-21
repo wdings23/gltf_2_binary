@@ -1484,7 +1484,7 @@ float fDominantLocalAngle = 0.0f;
 float3 testGlobalBindAxis = float3(0.0f, 0.0f, 0.0f);
 float fTestGlobalBindAngle = 0.0f;
 //if(srcJointName == "pelvis" || srcJointName == "neck" || srcJointName == "spine0" || srcJointName == "spine1" || srcJointName == "left_upper_arm" || srcJointName == "right_upper_arm")
-if(srcJointName == "left_foot" || srcJointName == "left_leg" || srcJointName == "left_thigh")
+//if(srcJointName == "left_foot" || srcJointName == "left_leg" || srcJointName == "left_thigh")
 {
     iTest = 1;
 
@@ -1554,8 +1554,9 @@ fDominantLocalAngle = eulerAngles.y;
         fDominantLocalAngle
     );*/
 
-    DEBUG_PRINTF("%.4f euler angle (%.4f, %.4f, %.4f)\n",
+    DEBUG_PRINTF("%.4f \"%s\" euler angle (%.4f, %.4f, %.4f)\n",
         fTime,
+        srcJointName.c_str(),
         eulerAngles.x, eulerAngles.y, eulerAngles.z);
 }
 
@@ -1633,7 +1634,8 @@ if(iTest > 0)
     quaternion q0 = quaternion::fromAngleAxis(localAxis, fLocalAngle);
     quaternion q1 = quaternion::fromAngleAxis(dominantLocalAxis, fDominantLocalAngle);
 
-    quaternion totalQ = q0 * q1; //q1 * q0;
+    //quaternion totalQ = q1 * q0;
+    quaternion totalQ = q0 * q1;
     r = totalQ.matrix();
     makeAngleAxis(localAxis, fLocalAngle, r);
 
