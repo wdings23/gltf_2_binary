@@ -892,12 +892,12 @@ void testTraverse(
     float4x4 const& localMatrix = aLocalBindMatrices[iArrayIndex];
     float4x4 totalMatrix = parentMatrix * localMatrix;
     std::string jointName = aJointMapping[joint.miIndex];
-    DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
+    /*DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
         totalMatrix.mafEntries[3],
         totalMatrix.mafEntries[7],
         totalMatrix.mafEntries[11],
         jointName.c_str()
-    );
+    );*/
     
     for(uint32_t iChild = 0; iChild < joint.miNumChildren; iChild++)
     {
@@ -1074,12 +1074,12 @@ void testTraverseAnimation(
     float4x4 const& localBindMatrix = aLocalBindMatrices[iArrayIndex];
     float4x4 localMatrix = localBindMatrix * localAnimationMatrix;
     float4x4 totalMatrix = parentMatrix * localMatrix;
-    DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
+    /*DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
         totalMatrix.mafEntries[3],
         totalMatrix.mafEntries[7],
         totalMatrix.mafEntries[11],
         jointName.c_str()
-    );
+    );*/
 
     //aGlobalJointPositions.push_back(float3(totalMatrix.mafEntries[3], totalMatrix.mafEntries[7], totalMatrix.mafEntries[11]));
     aGlobalJointMatrices.push_back(totalMatrix);
@@ -1157,12 +1157,12 @@ void testTraverseAnimationNoLocalBind(
     float4x4 rotationMatrix = q.matrix();
     float4x4 localAnimationMatrix = translationMatrix * rotationMatrix * scaleMatrix;
     float4x4 totalMatrix = parentMatrix * localAnimationMatrix;
-    DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
+    /*DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
         totalMatrix.mafEntries[3],
         totalMatrix.mafEntries[7],
         totalMatrix.mafEntries[11],
         jointName.c_str()
-    );
+    );*/
 
     for(uint32_t iChild = 0; iChild < joint.miNumChildren; iChild++)
     {
@@ -1262,12 +1262,12 @@ if(srcJointName == "left_upper_arm")
     float4x4 const& localBindMatrix = aLocalBindMatrices[iArrayIndex];
     float4x4 localMatrix = localBindMatrix * localAnimationMatrix;
     float4x4 totalMatrix = parentMatrix * localMatrix;
-    DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
+    /*DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
         totalMatrix.mafEntries[3],
         totalMatrix.mafEntries[7],
         totalMatrix.mafEntries[11],
         jointName.c_str()
-    );
+    );*/
 
     for(uint32_t iChild = 0; iChild < joint.miNumChildren; iChild++)
     {
@@ -1377,12 +1377,12 @@ void testTraverseMatchingKeyFrames(
 
     float4x4 totalMatrix = parentMatrix * localAnimMatrix;
     std::string jointName = aJointMapping[joint.miIndex];
-    DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
+    /*DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\")\n",
         totalMatrix.mafEntries[3],
         totalMatrix.mafEntries[7],
         totalMatrix.mafEntries[11],
         jointName.c_str()
-    );
+    );*/
 
     for(uint32_t iChild = 0; iChild < joint.miNumChildren; iChild++)
     {
@@ -1478,13 +1478,13 @@ void getMatchingAnimationFrames(
 
 // test test test
 uint32_t iTest = 0;
-float3 dominantAxis = float3(0.0f, 1.0f, 0.0f);
-float3 dominantTangent = float3(1.0f, 0.0f, 0.0f);
-float fDominantAngle = 0.0f;
+float3 dominantLocalAxis = float3(0.0f, 1.0f, 0.0f);
+float3 dominantLocalTangent = float3(1.0f, 0.0f, 0.0f);
+float fDominantLocalAngle = 0.0f;
 float3 testGlobalBindAxis = float3(0.0f, 0.0f, 0.0f);
 float fTestGlobalBindAngle = 0.0f;
-if(srcJointName == "pelvis" || srcJointName == "neck" || srcJointName == "spine0" || srcJointName == "spine1")
-//if(srcJointName == "left_upper_arm")
+//if(srcJointName == "pelvis" || srcJointName == "neck" || srcJointName == "spine0" || srcJointName == "spine1" || srcJointName == "left_upper_arm" || srcJointName == "right_upper_arm")
+if(srcJointName == "left_foot" || srcJointName == "left_leg" || srcJointName == "left_thigh")
 {
     iTest = 1;
 
@@ -1503,74 +1503,60 @@ if(srcJointName == "pelvis" || srcJointName == "neck" || srcJointName == "spine0
         );
     }
     
+    // get local space joint positions and calculate the joint to child direction in local space
     float4x4 inverseSrcGlobalBindMatrix = invert(aSrcGlobalBindMatrices[iSrcArrayIndex]);
-    float4x4 inverseSrcChildGlobalMatrix = invert(aSrcGlobalBindMatrices[iSrcChildArrayIndex]);
-
-    float4 invJointPos = mul(
+    float4 localJointPos = mul(
         float4(pos.x, pos.y, pos.z, 1.0f),
         inverseSrcGlobalBindMatrix
     );
-
-    float4 invChildJointPos = mul(
+    assert(float3(localJointPos) == float3(0.0f, 0.0f, 0.0f));
+    float4 localChildJointPos = mul(
         float4(childPos.x, childPos.y, childPos.z, 1.0f),
         inverseSrcGlobalBindMatrix
     );
+    float3 localSrcToChildDiff = 
+        float3(localChildJointPos.x, localChildJointPos.y, localChildJointPos.z) - 
+        float3(localJointPos.x, localJointPos.y, localJointPos.z);
+    float3 localSrcToChildDir = normalize(localSrcToChildDiff);
+    dominantLocalAxis = localSrcToChildDir;
 
-    float3 srcToChildDiff = 
-        float3(invChildJointPos.x, invChildJointPos.y, invChildJointPos.z) - 
-        float3(invJointPos.x, invJointPos.y, invJointPos.z);
+    // local tangent use to apply animate rotation 
+    float3 up = (fabsf(dominantLocalAxis.y) > 0.99f) ? float3(0.0f, 0.0f, 1.0f) : float3(0.0f, 1.0f, 0.0f);
+    dominantLocalTangent = normalize(cross(dominantLocalAxis, up));
+    
+    // rotation only animated matrix
+    float4x4 rotationOnlyAnimMatrix = aSrcGlobalAnimatedJointMatrices[iSrcArrayIndex];
+    rotationOnlyAnimMatrix.mafEntries[3] = rotationOnlyAnimMatrix.mafEntries[7] = rotationOnlyAnimMatrix.mafEntries[11] = 0.0f;
+    
+    // anim matrix * inverse global bind matrix = local anim matrix
+    float4x4 inverseSrcGlobalRotationMatrix = inverseSrcGlobalBindMatrix;
+    inverseSrcGlobalRotationMatrix.mafEntries[3] = inverseSrcGlobalRotationMatrix.mafEntries[7] = inverseSrcGlobalRotationMatrix.mafEntries[11] = 0.0f;
+    float4x4 localRotationOnlyAnimMatrix = inverseSrcGlobalRotationMatrix * rotationOnlyAnimMatrix;
 
-    float3 srcToChildDir = normalize(srcToChildDiff);
-
-    //dominantAxis = normalize(childPos - pos);
-    dominantAxis = srcToChildDir;
-//#if 0
-    if(fabsf(dominantAxis.x) > fabsf(dominantAxis.y) && fabsf(dominantAxis.x) > fabsf(dominantAxis.z))
-    {
-        dominantAxis = float3(1.0f, 0.0f, 0.0f);
-    }
-    else if(fabsf(dominantAxis.y) > fabsf(dominantAxis.x) && fabsf(dominantAxis.y) > fabsf(dominantAxis.z))
-    {
-        dominantAxis = float3(0.0f, 1.0f, 0.0f);
-    }
-    else if(fabsf(dominantAxis.z) > fabsf(dominantAxis.x) && fabsf(dominantAxis.z) > fabsf(dominantAxis.y))
-    {
-        dominantAxis = float3(0.0f, 0.0f, 1.0f);
-    }
-//#endif // #if 0
-
-    float3 up = (fabsf(dominantAxis.y) > 0.99f) ? float3(1.0f, 0.0f, 0.0f) : float3(0.0f, 1.0f, 0.0f);
-    dominantTangent = normalize(cross(dominantAxis, up));
-    //dominantTangent.x = fabsf(dominantTangent.x);
-    //dominantTangent.y = fabsf(dominantTangent.y);
-    //dominantTangent.z = fabsf(dominantTangent.z);
-
-    float4x4 rotationOnlyMatrix = aSrcGlobalAnimatedJointMatrices[iSrcArrayIndex];
-    rotationOnlyMatrix.mafEntries[3] = rotationOnlyMatrix.mafEntries[7] = rotationOnlyMatrix.mafEntries[11] = 0.0f;
-    float3 row0 = normalize(float3(rotationOnlyMatrix.mafEntries[0], rotationOnlyMatrix.mafEntries[1], rotationOnlyMatrix.mafEntries[2]));
-    float3 row1 = normalize(float3(rotationOnlyMatrix.mafEntries[4], rotationOnlyMatrix.mafEntries[5], rotationOnlyMatrix.mafEntries[6]));
-    float3 row2 = normalize(float3(rotationOnlyMatrix.mafEntries[8], rotationOnlyMatrix.mafEntries[9], rotationOnlyMatrix.mafEntries[10]));
-
-    rotationOnlyMatrix.mafEntries[0] = row0.x; rotationOnlyMatrix.mafEntries[1] = row0.y; rotationOnlyMatrix.mafEntries[2] = row0.z;
-    rotationOnlyMatrix.mafEntries[4] = row1.x; rotationOnlyMatrix.mafEntries[5] = row1.y; rotationOnlyMatrix.mafEntries[6] = row1.z;
-    rotationOnlyMatrix.mafEntries[8] = row2.x; rotationOnlyMatrix.mafEntries[9] = row2.y; rotationOnlyMatrix.mafEntries[10] = row2.z;
-
-    float4 srcAnimatedTangent = mul(
-        float4(dominantTangent.x, dominantTangent.y, dominantTangent.z, 1.0f),
-        rotationOnlyMatrix
+    // local anim matrix * local tangent = local space animated bone direction
+    float4 srcAnimLocalTangent = mul(
+        float4(dominantLocalTangent.x, dominantLocalTangent.y, dominantLocalTangent.z, 1.0f),
+        localRotationOnlyAnimMatrix
     );
 
-    srcAnimatedTangent.y = 0.0f;
-    float3 srcAnimatedTangentXYZ = normalize(srcAnimatedTangent);
-    float fDP = dot(srcAnimatedTangentXYZ, dominantTangent);
-    fDominantAngle = acosf(fDP);
+    float3 srcAnimatedLocalTangentXYZ = normalize(float3(srcAnimLocalTangent.x, 0.0f, srcAnimLocalTangent.z));
+    float fDP = dot(srcAnimatedLocalTangentXYZ, dominantLocalTangent);
+    fDominantLocalAngle = acosf(fDP);
 
-    DEBUG_PRINTF("joint \"%s\" dominant axis (%.4f, %.4f, %.4f) dominant tangent (%.4f, %.4f, %.4f) dominant angle: %.4f\n",
+float3 eulerAngles = extractEulerAngles2(localRotationOnlyAnimMatrix);
+fDominantLocalAngle = eulerAngles.y;
+
+    /*DEBUG_PRINTF("time: %.4f joint \"%s\" dominant axis (%.4f, %.4f, %.4f) dominant tangent (%.4f, %.4f, %.4f) dominant angle: %.4f\n",
+        fTime,
         srcJointName.c_str(),
-        dominantAxis.x, dominantAxis.y, dominantAxis.z,
-        dominantTangent.x, dominantTangent.y, dominantTangent.z,
-        fDominantAngle
-    );
+        dominantLocalAxis.x, dominantLocalAxis.y, dominantLocalAxis.z,
+        dominantLocalTangent.x, dominantLocalTangent.y, dominantLocalTangent.z,
+        fDominantLocalAngle
+    );*/
+
+    DEBUG_PRINTF("%.4f euler angle (%.4f, %.4f, %.4f)\n",
+        fTime,
+        eulerAngles.x, eulerAngles.y, eulerAngles.z);
 }
 
         // dst joint and array indices
@@ -1645,9 +1631,13 @@ if(srcJointName == "pelvis" || srcJointName == "neck" || srcJointName == "spine0
 if(iTest > 0)
 {
     quaternion q0 = quaternion::fromAngleAxis(localAxis, fLocalAngle);
-    quaternion q1 = quaternion::fromAngleAxis(dominantAxis, fDominantAngle);
+    quaternion q1 = quaternion::fromAngleAxis(dominantLocalAxis, fDominantLocalAngle);
 
-    quaternion totalQ = q1 * q0;
+    quaternion totalQ = q0 * q1; //q1 * q0;
+    r = totalQ.matrix();
+    makeAngleAxis(localAxis, fLocalAngle, r);
+
+#if 0
     float4 totalAxisAngle = totalQ.toAngleAxis();
     r = makeFromAngleAxis(
         float3(totalAxisAngle.x, totalAxisAngle.y, totalAxisAngle.z),
@@ -1655,9 +1645,7 @@ if(iTest > 0)
     ); 
     localAxis = float3(totalAxisAngle.x, totalAxisAngle.y, totalAxisAngle.z);
     fLocalAngle = totalAxisAngle.w;
-
-
-    
+#endif // #if 0
 
     float3 dstGlobalBindJointPosition = aDstGlobalBindJointPositions[iDstArrayIndex];
     float3 dstGlobalBindChildJointPosition = aDstGlobalBindJointPositions[iDstChildArrayIndex];
@@ -1841,14 +1829,14 @@ int main(int argc, char** argv)
             uint32_t iArrayIndex = aaiSrcJointMapIndices[i][iJointIndex];
 
             float3 pos = float3(aaSrcGlobalBindMatrices[i][iArrayIndex].mafEntries[3], aaSrcGlobalBindMatrices[i][iArrayIndex].mafEntries[7], aaSrcGlobalBindMatrices[i][iArrayIndex].mafEntries[11]);
-            DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\") # joint index: %d array index: %d\n",
+            /*DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\") # joint index: %d array index: %d\n",
                 pos.x,
                 pos.y,
                 pos.z,
                 jointName.c_str(),
                 iJointIndex,
                 iArrayIndex
-            );
+            );*/
         }
     }
 
@@ -1921,14 +1909,14 @@ int main(int argc, char** argv)
             uint32_t iArrayIndex = aaiDstJointMapIndices[i][iJointIndex];
 
             float3 pos = float3(aaDstGlobalBindMatrices[i][iArrayIndex].mafEntries[3], aaDstGlobalBindMatrices[i][iArrayIndex].mafEntries[7], aaDstGlobalBindMatrices[i][iArrayIndex].mafEntries[11]);
-            DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\") # joint index: %d array index: %d\n",
+            /*DEBUG_PRINTF("draw_sphere([%.4f, %.4f, %.4f], 0.01, 255, 0, 0, 255, \"%s\") # joint index: %d array index: %d\n",
                 pos.x,
                 pos.y,
                 pos.z,
                 jointName.c_str(),
                 iJointIndex,
                 iArrayIndex
-            );
+            );*/
 
             aDstGlobalBindJointPositions[iArrayIndex] = pos;
         }

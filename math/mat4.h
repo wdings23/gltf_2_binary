@@ -151,6 +151,7 @@ mat4 scale(float fX, float fY, float fZ);
 mat4 scale(vec4 const& scale);
 
 vec3 extractEulerAngles(mat4 const& m);
+vec3 extractEulerAngles2(mat4 const& m);
 
 mat4 makeFromAngleAxis(vec3 const& axis, float fAngle);
 void makeAngleAxis(vec3& axis, float& fAngle, mat4 const& m);

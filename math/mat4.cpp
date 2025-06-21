@@ -615,6 +615,29 @@ vec3 extractEulerAngles(mat4 const& m)
 /*
 **
 */
+vec3 extractEulerAngles2(mat4 const& m)
+{
+	float roll, pitch, yaw;
+    if (fabsf(m.mafEntries[8]) < 1.0f) 
+    {
+        pitch = asinf(-m.mafEntries[8]);
+        roll  = atan2f(m.mafEntries[9], m.mafEntries[10]);
+        yaw   = atan2f(m.mafEntries[4], m.mafEntries[0]);
+    } 
+    else 
+    {
+        // Gimbal lock case
+        pitch = (m.mafEntries[8] <= -1.0) ? M_PI / 2 : -M_PI / 2;
+        roll = 0.0;
+        yaw = atan2f(-m.mafEntries[1], m.mafEntries[5]);
+    }
+
+    return vec3(roll, pitch, yaw);  // X, Y, Z
+}
+
+/*
+**
+*/
 bool mat4::identical(mat4 const& m, float fTolerance) const
 {
 	bool bRet = true;
